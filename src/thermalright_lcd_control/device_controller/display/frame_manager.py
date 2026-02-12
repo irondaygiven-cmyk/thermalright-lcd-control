@@ -117,7 +117,11 @@ class FrameManager:
         return image
 
     def _load_gif(self):
-        """Load an animated GIF and retrieve duration from metadata"""
+        """
+        Load an animated GIF and retrieve duration from metadata.
+        
+        GIFs will loop continuously until a different background is selected.
+        """
         if not os.path.exists(self.config.background_path):
             raise FileNotFoundError(f"Background GIF not found: {self.config.background_path}")
 
@@ -128,13 +132,14 @@ class FrameManager:
         # Extract all frames from GIF
         for frame in ImageSequence.Iterator(gif):
             gif_frame_duration = self._gif_duration(frame)
-            self.logger.info(f"Extracting GIF duration from metadata... {gif_frame_duration}")
+            self.logger.debug(f"Extracting GIF frame with duration: {gif_frame_duration:.3f}s")
             frame_copy = frame.copy()
             frame_copy = self._resize_image(frame_copy)
             self.background_frames.append(frame_copy)
             self.gif_durations.append(gif_frame_duration)
 
         self.frame_duration = self.gif_durations[0]
+        self.logger.info(f"GIF loaded: {len(self.background_frames)} frames, loops continuously")
 
     def _load_video(self):
         """
@@ -143,6 +148,8 @@ class FrameManager:
         Note: OpenCV VideoCapture only reads video frames - audio is automatically
         ignored and will NOT be played. This ensures silent video playback for the
         LCD display.
+        
+        Videos will loop continuously until a different background is selected.
         """
         if not os.path.exists(self.config.background_path):
             raise FileNotFoundError(f"Background video not found: {self.config.background_path}")
@@ -178,15 +185,20 @@ class FrameManager:
 
         video_capture.release()
 
-        self.logger.info(f"Video loaded: {os.path.basename(self.config.background_path)} (audio disabled)")
+        self.logger.info(f"Video loaded: {os.path.basename(self.config.background_path)} (audio disabled, loops continuously)")
         self.logger.info(f"  Format: {os.path.splitext(self.config.background_path)[1].upper()}")
         self.logger.info(f"  FPS: {fps:.2f}")
-        self.logger.info(f"  Duration: {duration:.1f}s")
+        self.logger.info(f"  Duration: {duration:.1f}s per loop")
         self.logger.info(f"  Frame duration: {self.frame_duration:.3f}s")
         self.logger.info(f"  Total frames loaded: {len(self.background_frames)}")
 
     def _load_image_collection(self):
-        """Load an image collection from a folder"""
+        """
+        Load an image collection from a folder.
+        
+        Image collections will cycle/loop continuously through all images until
+        a different background is selected.
+        """
         if not os.path.isdir(self.config.background_path):
             raise NotADirectoryError(f"Background directory not found: {self.config.background_path}")
 
@@ -208,7 +220,7 @@ class FrameManager:
             image = self._resize_image(image)
             self.background_frames.append(image)
 
-        self.logger.debug(f"Image collection loaded: {len(image_files)} images")
+        self.logger.info(f"Image collection loaded: {len(image_files)} images, loops continuously")
 
     def _start_metrics_update(self):
         """Start the metrics update thread every second"""
@@ -264,12 +276,26 @@ class FrameManager:
             return 0.1  # Default fallback
 
     def get_current_frame(self) -> Image.Image:
-        """Get the current background frame"""
+        """
+        Get the current background frame.
+        
+        Automatically loops through all frames (for videos, GIFs, and image collections)
+        until a different media is selected. The looping is continuous and seamless.
+        """
         current_time = time.time()
 
         if current_time - self.frame_start_time >= self.frame_duration:
             self.frame_start_time = current_time
+            # Advance to next frame with wraparound (loop back to start when reaching the end)
+            previous_index = self.current_frame_index
             self.current_frame_index = (self.current_frame_index + 1) % len(self.background_frames)
+            
+            # Log when video/animation loops back to start
+            if previous_index > 0 and self.current_frame_index == 0:
+                media_type = "video" if self.config.background_type == BackgroundType.VIDEO else \
+                            "GIF" if self.config.background_type == BackgroundType.GIF else \
+                            "image collection"
+                self.logger.debug(f"{media_type.capitalize()} looping back to start (frame 0/{len(self.background_frames)-1})")
 
         if self.config.background_type == BackgroundType.GIF:
             self.frame_duration = self.gif_durations[self.current_frame_index]

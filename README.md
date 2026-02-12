@@ -27,14 +27,15 @@ Feel free to contribute to this project and let me know if the application is wo
 For backgrounds, i have included all media formats supported by the Windows application
 and added the option to select a collection of images to cycle through on the display.
 
-**New in this version:** Full Windows 11 support with video playback (audio automatically disabled for LCD display).
+**New in this version:** Full Windows 11 support with video playback (audio automatically disabled, seamless looping).
 
 ## Features
 
 - 🖥️ **User-friendly GUI** - Modern interface for device configuration
 - ⚙️ **Background service** - Automatic device management (Linux) or application mode (Windows)
 - 🎨 **Theme support** - Customizable display themes and backgrounds
-- 🎬 **Video playback** - Support for video files (MP4, AVI, MKV, MOV, etc.) without audio
+- 🎬 **Video playback** - Support for video files (MP4, AVI, MKV, MOV, etc.) without audio, continuous looping
+- 🔄 **Seamless looping** - Videos, GIFs, and image collections loop continuously until changed
 - 📋 **System integration** - Native Linux desktop integration
 - 🪟 **Windows 11 support** - Full compatibility with Windows 11
 - 🔌 **Cross-platform** - Works on both Linux and Windows 11
@@ -118,7 +119,11 @@ That's it! The application is now installed. You can see the default theme displ
 The application supports video playback on Windows 11 using OpenCV. All video files play **without audio** - only the visual frames are displayed on the LCD screen. Supported formats include:
 - MP4, AVI, MKV, MOV, WEBM, FLV, WMV, M4V
 
-**Note:** Audio is automatically disabled by OpenCV's VideoCapture - no sound will be played through your system speakers.
+**Video Features:**
+- ✅ **Audio automatically disabled** - No sound will be played through your system speakers
+- ✅ **Continuous looping** - Videos loop seamlessly until you select a different image or video
+- ✅ **Full frame rate** - Videos play at their original FPS for smooth playback
+- ✅ **Automatic resizing** - Videos are automatically scaled to fit your LCD display resolution
 
 #### GPU Metrics on Windows
 
