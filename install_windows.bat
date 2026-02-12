@@ -53,10 +53,17 @@ echo.
 
 setlocal enabledelayedexpansion
 
+REM Ask user if they want to search all drives
+echo Do you want to search all drives for iStripper? (Y/N)
+echo   (This may take longer but finds installations on any drive)
+set /p SEARCH_ALL_DRIVES=
+echo.
+
 REM Search for iStripper
 set "ISTRIPPER_PATH="
 set "SEARCH_DIRS=%ProgramFiles%,%ProgramFiles(x86)%"
 
+REM First check standard Program Files directories
 for %%D in (%SEARCH_DIRS%) do (
     if exist "%%D\iStripper\iStripper.exe" (
         set "ISTRIPPER_PATH=%%D\iStripper\iStripper.exe"
@@ -72,11 +79,56 @@ for %%D in (%SEARCH_DIRS%) do (
     )
 )
 
+REM If not found and user wants to search all drives
+if /i "%SEARCH_ALL_DRIVES%"=="Y" (
+    echo   Searching additional drives for iStripper...
+    
+    REM Get list of available drives (excluding C:)
+    for %%d in (D E F G H I J K L M N O P Q R S T U V W X Y Z) do (
+        if exist "%%d:\" (
+            REM Check common paths on each drive
+            if exist "%%d:\Program Files\iStripper\iStripper.exe" (
+                set "ISTRIPPER_PATH=%%d:\Program Files\iStripper\iStripper.exe"
+                echo   Found on drive %%d:\
+                goto :found_istripper
+            )
+            if exist "%%d:\Program Files (x86)\iStripper\iStripper.exe" (
+                set "ISTRIPPER_PATH=%%d:\Program Files (x86)\iStripper\iStripper.exe"
+                echo   Found on drive %%d:\
+                goto :found_istripper
+            )
+            if exist "%%d:\Games\iStripper\iStripper.exe" (
+                set "ISTRIPPER_PATH=%%d:\Games\iStripper\iStripper.exe"
+                echo   Found on drive %%d:\
+                goto :found_istripper
+            )
+            if exist "%%d:\iStripper\iStripper.exe" (
+                set "ISTRIPPER_PATH=%%d:\iStripper\iStripper.exe"
+                echo   Found on drive %%d:\
+                goto :found_istripper
+            )
+            if exist "%%d:\Totem Entertainment\iStripper.exe" (
+                set "ISTRIPPER_PATH=%%d:\Totem Entertainment\iStripper.exe"
+                echo   Found on drive %%d:\
+                goto :found_istripper
+            )
+            if exist "%%d:\VirtuaGirl HD\vghd.exe" (
+                set "ISTRIPPER_PATH=%%d:\VirtuaGirl HD\vghd.exe"
+                echo   Found on drive %%d:\
+                goto :found_istripper
+            )
+        )
+    )
+)
+
 :found_istripper
 if defined ISTRIPPER_PATH (
     echo [OK] iStripper detected: !ISTRIPPER_PATH!
 ) else (
     echo [--] iStripper not found (optional)
+    if /i not "%SEARCH_ALL_DRIVES%"=="Y" (
+        echo   Tip: Run installer again and choose 'Y' to search all drives
+    )
 )
 
 REM Search for VLC

@@ -57,7 +57,8 @@ function Find-Application {
     param(
         [string]$AppName,
         [string[]]$ExecutableNames,
-        [string[]]$CommonSubdirs
+        [string[]]$CommonSubdirs,
+        [switch]$SearchAllDrives
     )
     
     # Get Program Files directories
@@ -69,7 +70,7 @@ function Find-Application {
     # Remove duplicates and non-existent paths
     $programFilesDirs = $programFilesDirs | Select-Object -Unique | Where-Object { Test-Path $_ }
     
-    # First check common subdirectories
+    # First check common subdirectories in Program Files
     foreach ($baseDir in $programFilesDirs) {
         foreach ($subdir in $CommonSubdirs) {
             $searchPath = Join-Path $baseDir $subdir
@@ -84,7 +85,47 @@ function Find-Application {
         }
     }
     
-    # If not found, do a more thorough search (limited depth)
+    # If not found and SearchAllDrives is enabled, search other drives
+    if ($SearchAllDrives) {
+        Write-Host "  Searching additional drives for $AppName..." -ForegroundColor Gray
+        
+        # Get all fixed drives
+        $drives = Get-PSDrive -PSProvider FileSystem | Where-Object { 
+            $_.Root -match '^[A-Z]:\\$' -and (Test-Path $_.Root)
+        }
+        
+        foreach ($drive in $drives) {
+            # Skip C: drive as it's already searched
+            if ($drive.Name -eq 'C') { continue }
+            
+            # Check common installation directories on other drives
+            $drivePaths = @(
+                "$($drive.Root)Program Files",
+                "$($drive.Root)Program Files (x86)",
+                "$($drive.Root)Games",
+                "$($drive.Root)"
+            )
+            
+            foreach ($basePath in $drivePaths) {
+                if (-not (Test-Path $basePath)) { continue }
+                
+                foreach ($subdir in $CommonSubdirs) {
+                    $searchPath = Join-Path $basePath $subdir
+                    if (Test-Path $searchPath) {
+                        foreach ($exeName in $ExecutableNames) {
+                            $exePath = Join-Path $searchPath $exeName
+                            if (Test-Path $exePath) {
+                                Write-Host "  Found on drive $($drive.Name):\" -ForegroundColor Cyan
+                                return $exePath
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    # If still not found, do a more thorough search in Program Files (limited depth)
     foreach ($baseDir in $programFilesDirs) {
         foreach ($exeName in $ExecutableNames) {
             $found = Get-ChildItem -Path $baseDir -Filter $exeName -Recurse -ErrorAction SilentlyContinue -Depth 3 | Select-Object -First 1
@@ -101,14 +142,25 @@ function Find-Application {
 Write-Host "Searching for installed applications..." -ForegroundColor Cyan
 Write-Host ""
 
+# Ask user if they want to search additional drives
+Write-Host "Do you want to search all drives for iStripper? (Y/N)" -ForegroundColor Cyan
+Write-Host "  (This may take longer but finds installations on any drive)" -ForegroundColor Gray
+$searchAllDrives = Read-Host
+$shouldSearchAllDrives = ($searchAllDrives -eq "Y" -or $searchAllDrives -eq "y")
+Write-Host ""
+
 $iStripperPath = Find-Application -AppName "iStripper" `
     -ExecutableNames @("iStripper.exe", "vghd.exe") `
-    -CommonSubdirs @("iStripper", "Totem Entertainment", "VirtuaGirl HD")
+    -CommonSubdirs @("iStripper", "Totem Entertainment", "VirtuaGirl HD") `
+    -SearchAllDrives:$shouldSearchAllDrives
 
 if ($iStripperPath) {
     Write-Host "✓ iStripper detected: $iStripperPath" -ForegroundColor Green
 } else {
     Write-Host "○ iStripper not found (optional)" -ForegroundColor Yellow
+    if (-not $shouldSearchAllDrives) {
+        Write-Host "  Tip: Run installer again and choose 'Y' to search all drives" -ForegroundColor Gray
+    }
 }
 
 # Detect VLC

@@ -123,6 +123,9 @@ That's it! The application is now installed. You can see the default theme displ
    The installer will:
    - Check for Python and pip
    - **Automatically detect iStripper and VLC** if installed
+     - Searches C:\Program Files and C:\Program Files (x86) by default
+     - **Option to search all drives** for iStripper (D:, E:, etc.)
+     - Checks common installation directories (Games, root directories)
    - Install all required dependencies
    - Create a configuration file with detected application paths
    - Optionally create a desktop shortcut
@@ -216,10 +219,16 @@ Capture and display content from iStripper or any other application window:
 **Automatic Detection:**
 
 The Windows installer automatically searches for iStripper and VLC installations:
-- Searches Program Files and Program Files (x86) directories
+- Searches Program Files and Program Files (x86) directories on C: drive
+- **Optional: Search all drives** (D:, E:, F:, etc.) when prompted
+  - Checks Program Files on all fixed drives
+  - Checks Games folders and root directories
+  - Useful if iStripper is installed on a secondary drive
 - Checks common installation subdirectories
 - Saves detected paths to configuration file
 - Shows detected applications at the end of installation
+
+**Tip:** If iStripper is installed on a drive other than C:, choose "Y" when the installer asks to search all drives.
 
 **Setup:**
 

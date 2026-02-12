@@ -38,31 +38,71 @@ class AppDetector:
         if not is_windows():
             raise RuntimeError("AppDetector is only supported on Windows")
     
-    def get_program_files_dirs(self) -> List[Path]:
+    def get_all_drives(self) -> List[Path]:
+        """
+        Get all available fixed drives on Windows.
+        
+        Returns:
+            List of Path objects for drive roots
+        """
+        import string
+        drives = []
+        
+        for letter in string.ascii_uppercase:
+            drive = Path(f'{letter}:/')
+            if drive.exists():
+                try:
+                    # Check if it's a fixed drive (not CD/DVD or network)
+                    import ctypes
+                    drive_type = ctypes.windll.kernel32.GetDriveTypeW(str(drive))
+                    # 3 = DRIVE_FIXED (local hard disk)
+                    if drive_type == 3:
+                        drives.append(drive)
+                except:
+                    # If we can't determine type, include it anyway
+                    drives.append(drive)
+        
+        return drives
+    
+    def get_program_files_dirs(self, include_all_drives: bool = False) -> List[Path]:
         """
         Get all Program Files directories to search.
+        
+        Args:
+            include_all_drives: If True, search Program Files on all drives
         
         Returns:
             List of Path objects for Program Files directories
         """
         dirs = []
         
-        # Standard Program Files directories
-        program_files = os.environ.get('ProgramFiles')
-        if program_files:
-            dirs.append(Path(program_files))
-        
-        # Program Files (x86) for 32-bit apps on 64-bit Windows
-        program_files_x86 = os.environ.get('ProgramFiles(x86)')
-        if program_files_x86:
-            dirs.append(Path(program_files_x86))
-        
-        # Fallback to common paths if environment variables not set
-        if not dirs:
-            dirs.extend([
-                Path('C:\\Program Files'),
-                Path('C:\\Program Files (x86)')
-            ])
+        if include_all_drives:
+            # Search all fixed drives
+            for drive in self.get_all_drives():
+                # Add Program Files variants for each drive
+                dirs.extend([
+                    drive / 'Program Files',
+                    drive / 'Program Files (x86)',
+                    drive / 'Games',
+                    drive  # Root of drive for direct installations
+                ])
+        else:
+            # Standard Program Files directories on C: drive only
+            program_files = os.environ.get('ProgramFiles')
+            if program_files:
+                dirs.append(Path(program_files))
+            
+            # Program Files (x86) for 32-bit apps on 64-bit Windows
+            program_files_x86 = os.environ.get('ProgramFiles(x86)')
+            if program_files_x86:
+                dirs.append(Path(program_files_x86))
+            
+            # Fallback to common paths if environment variables not set
+            if not dirs:
+                dirs.extend([
+                    Path('C:\\Program Files'),
+                    Path('C:\\Program Files (x86)')
+                ])
         
         return [d for d in dirs if d.exists()]
     
@@ -160,12 +200,13 @@ class AppDetector:
         
         return None
     
-    def find_application(self, app_name: str) -> Optional[Path]:
+    def find_application(self, app_name: str, search_all_drives: bool = False) -> Optional[Path]:
         """
         Find an application by searching all common locations.
         
         Args:
             app_name: Application name ('istripper' or 'vlc')
+            search_all_drives: If True, search all fixed drives (slower but more thorough)
             
         Returns:
             Path to executable if found, None otherwise
@@ -185,7 +226,7 @@ class AppDetector:
         common_subdirs = self.COMMON_SUBDIRS.get(app_name_lower, [])
         
         # Search Program Files directories
-        program_files_dirs = self.get_program_files_dirs()
+        program_files_dirs = self.get_program_files_dirs(include_all_drives=search_all_drives)
         
         for base_dir in program_files_dirs:
             # First check common subdirectories (faster)
@@ -198,15 +239,20 @@ class AppDetector:
                             return exe_path
             
             # If not found in common subdirs, do recursive search
-            result = self.search_directory_recursive(base_dir, exe_names)
-            if result:
-                return result
+            # Only do recursive search on C: drive to avoid long delays
+            if not search_all_drives or base_dir.drive == 'C:':
+                result = self.search_directory_recursive(base_dir, exe_names)
+                if result:
+                    return result
         
         return None
     
-    def detect_all_applications(self) -> Dict[str, Optional[Path]]:
+    def detect_all_applications(self, search_all_drives: bool = False) -> Dict[str, Optional[Path]]:
         """
         Detect all supported applications.
+        
+        Args:
+            search_all_drives: If True, search all fixed drives for iStripper
         
         Returns:
             Dictionary mapping application names to their paths (or None if not found)
@@ -214,14 +260,19 @@ class AppDetector:
         results = {}
         
         for app_name in self.APP_EXECUTABLES.keys():
-            results[app_name] = self.find_application(app_name)
+            # Only search all drives for iStripper
+            should_search_all = search_all_drives and app_name == 'istripper'
+            results[app_name] = self.find_application(app_name, search_all_drives=should_search_all)
         
         return results
 
 
-def detect_applications() -> Dict[str, Optional[str]]:
+def detect_applications(search_all_drives: bool = False) -> Dict[str, Optional[str]]:
     """
     Convenience function to detect all applications and return paths as strings.
+    
+    Args:
+        search_all_drives: If True, search all fixed drives for iStripper
     
     Returns:
         Dictionary mapping application names to their path strings (or None if not found)
@@ -230,7 +281,7 @@ def detect_applications() -> Dict[str, Optional[str]]:
         return {}
     
     detector = AppDetector()
-    results = detector.detect_all_applications()
+    results = detector.detect_all_applications(search_all_drives=search_all_drives)
     
     # Convert Path objects to strings
     return {app: str(path) if path else None for app, path in results.items()}
