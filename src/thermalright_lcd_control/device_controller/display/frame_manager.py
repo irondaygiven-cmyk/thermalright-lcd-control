@@ -6,7 +6,7 @@ import os
 import threading
 import time
 from threading import Timer
-from typing import Tuple
+from typing import Tuple, Optional
 from PIL import Image, ImageSequence
 
 from thermalright_lcd_control.device_controller.display.config import BackgroundType, DisplayConfig
@@ -19,21 +19,26 @@ from thermalright_lcd_control.common.logging_config import get_service_logger
 # Try to import OpenCV for video support
 try:
     import cv2
-
     HAS_OPENCV = True
 except ImportError:
     HAS_OPENCV = False
 
+# Try to import window capture for iStripper and other app integration
+try:
+    from thermalright_lcd_control.device_controller.display.window_capture import WindowCapture
+    HAS_WINDOW_CAPTURE = True
+except ImportError:
+    HAS_WINDOW_CAPTURE = False
+
 
 class FrameManager:
-    """Frame manager with real-time metrics updates"""
+    """Frame manager with real-time metrics updates and window capture support"""
 
     # Supported video formats
     SUPPORTED_VIDEO_FORMATS = ['.mp4', '.avi', '.mkv', '.mov', '.webm', '.flv', '.wmv', '.m4v']
     DEFAULT_FRAME_DURATION = 2.0
     REFRESH_METRICS_INTERVAL = 5.0
-    def __init__(self, config: DisplayConfig):
-        self.config = config
+    
     def __init__(self, config: DisplayConfig):
         self.config = config
         self.logger = get_service_logger()
@@ -46,6 +51,11 @@ class FrameManager:
         self.frame_start_time = 0
         self.metrics_thread: Timer | None = None
         self.metrics_running = False
+        
+        # Window capture for iStripper and other apps
+        self.window_capture: Optional[WindowCapture] = None
+        self.is_window_capture_mode = False
+        
         if len(config.metrics_configs) != 0:
             # Initialize metrics collectors
             self.cpu_metrics = CpuMetrics()
@@ -92,6 +102,8 @@ class FrameManager:
                     self._load_static_image()
             elif self.config.background_type == BackgroundType.IMAGE_COLLECTION:
                 self._load_image_collection()
+            elif self.config.background_type == BackgroundType.WINDOW_CAPTURE:
+                self._load_window_capture()
 
             self.frame_start_time = time.time()
             self.logger.info(
@@ -222,6 +234,40 @@ class FrameManager:
 
         self.logger.info(f"Image collection loaded: {len(image_files)} images, loops continuously")
 
+    def _load_window_capture(self):
+        """
+        Initialize window capture for displaying application content (e.g., iStripper).
+        
+        Captures the specified application window in real-time and displays it on the LCD.
+        Requires window_title to be set in config.
+        """
+        if not HAS_WINDOW_CAPTURE:
+            raise RuntimeError(
+                "Window capture not available. Install required packages:\n"
+                "  Windows: pip install mss pygetwindow\n"
+                "  Linux: pip install python-xlib"
+            )
+        
+        if not self.config.window_title:
+            raise ValueError("window_title must be specified for WINDOW_CAPTURE background type")
+        
+        # Initialize window capture
+        self.window_capture = WindowCapture(
+            window_title=self.config.window_title,
+            target_width=self.config.output_width,
+            target_height=self.config.output_height,
+            fps=self.config.capture_fps
+        )
+        
+        self.is_window_capture_mode = True
+        self.frame_duration = 1.0 / self.config.capture_fps
+        
+        # Pre-load one black frame as fallback
+        black_frame = Image.new('RGBA', (self.config.output_width, self.config.output_height), (0, 0, 0, 255))
+        self.background_frames = [black_frame]
+        
+        self.logger.info(f"Window capture initialized: '{self.config.window_title}' at {self.config.capture_fps} FPS")
+
     def _start_metrics_update(self):
         """Start the metrics update thread every second"""
         self.logger.info("Starting metrics update thread ...")
@@ -281,7 +327,33 @@ class FrameManager:
         
         Automatically loops through all frames (for videos, GIFs, and image collections)
         until a different media is selected. The looping is continuous and seamless.
+        
+        For window capture mode (iStripper), captures a fresh frame in real-time.
         """
+        # Handle window capture mode (iStripper, etc.)
+        if self.is_window_capture_mode and self.window_capture:
+            current_time = time.time()
+            
+            # Check if it's time to capture a new frame
+            if current_time - self.frame_start_time >= self.frame_duration:
+                self.frame_start_time = current_time
+                
+                # Capture new frame from window
+                captured_frame = self.window_capture.capture_frame()
+                
+                if captured_frame:
+                    # Successfully captured - update the frame
+                    return captured_frame
+                else:
+                    # Window not found or capture failed - return black frame
+                    self.logger.debug(f"Window '{self.config.window_title}' not available, using fallback frame")
+                    return self.background_frames[0]  # Return black fallback frame
+            else:
+                # Return the last captured frame (stored in background_frames[0] if needed)
+                # For window capture, we return a new capture each time
+                return self.window_capture.capture_frame() or self.background_frames[0]
+        
+        # Handle standard media types (images, videos, GIFs, collections)
         current_time = time.time()
 
         if current_time - self.frame_start_time >= self.frame_duration:
@@ -322,6 +394,11 @@ class FrameManager:
         if self.metrics_thread:
             self.metrics_thread.cancel()
             self.metrics_thread = None
+        
+        # Clean up window capture if active
+        if self.window_capture:
+            self.window_capture.cleanup()
+            self.window_capture = None
 
         self.logger.debug("FrameManager cleaned up")
 

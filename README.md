@@ -36,6 +36,8 @@ and added the option to select a collection of images to cycle through on the di
 - 🎨 **Theme support** - Customizable display themes and backgrounds
 - 🎬 **Video playback** - Support for video files (MP4, AVI, MKV, MOV, etc.) without audio, continuous looping
 - 🔄 **Seamless looping** - Videos, GIFs, and image collections loop continuously until changed
+- 🔄 **Display rotation** - Rotate images and videos at any angle (0°, 90°, 180°, 270°, or custom angles)
+- 🖼️ **iStripper integration** - Capture and display content from iStripper or other applications
 - 📋 **System integration** - Native Linux desktop integration
 - 🪟 **Windows 11 support** - Full compatibility with Windows 11
 - 🔌 **Cross-platform** - Works on both Linux and Windows 11
@@ -93,7 +95,7 @@ That's it! The application is now installed. You can see the default theme displ
 
 #### Prerequisites
 
-1. **Python 3.8 or higher** - Download from [python.org](https://www.python.org/downloads/)
+1. **Python 3.10 or higher** - Download from [python.org](https://www.python.org/downloads/)
    - During installation, make sure to check "Add Python to PATH"
 
 2. **Microsoft Visual C++ Redistributable** - Usually already installed, but if needed, download from [Microsoft](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist)
@@ -106,7 +108,11 @@ That's it! The application is now installed. You can see the default theme displ
 
 3. **Install dependencies** using pip:
    ```powershell
+   # Core dependencies (required)
    pip install PySide6 hid psutil opencv-python pyusb pillow pyyaml
+   
+   # Optional: For iStripper/window capture support
+   pip install mss pygetwindow
    ```
 
 4. **Run the application**:
@@ -124,6 +130,68 @@ The application supports video playback on Windows 11 using OpenCV. All video fi
 - ✅ **Continuous looping** - Videos loop seamlessly until you select a different image or video
 - ✅ **Full frame rate** - Videos play at their original FPS for smooth playback
 - ✅ **Automatic resizing** - Videos are automatically scaled to fit your LCD display resolution
+- ✅ **Rotation support** - Rotate videos at any angle (see Display Rotation section below)
+
+#### Display Rotation
+
+Adjust the viewing angle of all media types (images, videos, GIFs, image collections, window capture):
+
+**Configuration:** Edit your config YAML file and set the `rotation` value:
+
+```yaml
+display:
+  rotation: 90  # Rotate 90 degrees clockwise
+  # Other options: 0 (no rotation), 180 (upside down), 270 (rotate left)
+  # Or use custom angles: 45, 135, etc.
+```
+
+**Supported Angles:**
+- **Standard angles** (0°, 90°, 180°, 270°) - Fast, no quality loss
+- **Custom angles** (any degree 0-360) - Flexible, slight edge cropping
+
+**Use Cases:**
+- Mount your LCD at different orientations
+- Adjust for display mounting position
+- Correct orientation for window capture
+
+#### iStripper Integration
+
+Capture and display content from iStripper or any other application window:
+
+**Setup:**
+
+1. **Install window capture dependencies:**
+   ```powershell
+   # Windows
+   pip install mss pygetwindow
+   
+   # Linux
+   pip install python-xlib
+   ```
+
+2. **Configure window capture** in your config YAML file:
+   ```yaml
+   display:
+     background:
+       type: "window_capture"
+       path: ""  # Not used for window capture
+     window_title: "iStripper"  # Window title to capture
+     capture_fps: 30  # Frame rate for capture (adjust for performance)
+   ```
+
+3. **Start iStripper** before launching the LCD control application
+
+**Features:**
+- ✅ **Real-time capture** - Live display of application window content
+- ✅ **Configurable FPS** - Adjust capture rate for performance (15-60 FPS)
+- ✅ **Auto-scaling** - Window content automatically resized to LCD resolution
+- ✅ **Works with any app** - Not limited to iStripper, works with any window title
+
+**Supported Applications:**
+- iStripper
+- Video players (VLC, MPC-HC, etc.)
+- Web browsers
+- Any application with a window title
 
 #### GPU Metrics on Windows
 

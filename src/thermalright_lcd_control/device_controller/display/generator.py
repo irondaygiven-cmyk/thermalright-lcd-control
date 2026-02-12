@@ -80,13 +80,22 @@ class DisplayGenerator:
         convert = result.convert('RGB')
 
         # Apply rotation if configured and requested
-        if apply_rotation:
-            if self.config.rotation == 90:
+        # Supports both standard angles (90, 180, 270) and arbitrary angles
+        if apply_rotation and self.config.rotation != 0:
+            rotation_angle = self.config.rotation
+            
+            # For standard angles, use faster transpose method
+            if rotation_angle == 90:
                 convert = convert.transpose(Image.ROTATE_270)  # PIL rotation is counter-clockwise
-            elif self.config.rotation == 180:
+            elif rotation_angle == 180:
                 convert = convert.transpose(Image.ROTATE_180)
-            elif self.config.rotation == 270:
+            elif rotation_angle == 270:
                 convert = convert.transpose(Image.ROTATE_90)
+            else:
+                # For arbitrary angles, use rotate method
+                # Negative because PIL rotates counter-clockwise
+                convert = convert.rotate(-rotation_angle, expand=False, fillcolor=(0, 0, 0))
+                self.logger.debug(f"Applied custom rotation: {rotation_angle} degrees")
 
         return convert
 
