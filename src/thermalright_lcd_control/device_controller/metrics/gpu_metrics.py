@@ -9,13 +9,15 @@ import subprocess
 
 from thermalright_lcd_control.device_controller.metrics import Metrics
 from thermalright_lcd_control.common.logging_config import LoggerConfig
+from thermalright_lcd_control.common.platform_utils import is_windows, is_linux
 
 
 class GpuMetrics(Metrics):
     """
-    AMD-friendly GPU metrics:
-      - Detect vendor via sysfs; still supports NVIDIA (nvidia-smi) & Intel.
-      - On AMD: prefer a discrete GPU first, then fallback to iGPU.
+    Cross-platform GPU metrics:
+      - Windows & Linux: NVIDIA supported via nvidia-smi
+      - Linux only: AMD via sysfs (discrete GPU preferred, iGPU fallback)
+      - Linux only: Intel via sysfs
       - AMD temperature: hwmon for the *selected* card (junction/hotspot, else edge).
       - AMD usage: /sys/class/drm/cardX/device/gpu_busy_percent (selected card).
       - AMD frequency: prefer pp_dpm_sclk on selected card, else that card's hwmon freq1_input, else debugfs match by BDF.
@@ -28,6 +30,10 @@ class GpuMetrics(Metrics):
         self.gpu_freq = None
         self.gpu_vendor = None
         self.gpu_name = None
+
+        # Platform detection
+        self._is_windows = is_windows()
+        self._is_linux = is_linux()
 
         # AMD selection state (only used when gpu_vendor == "amd")
         self.amd_card_path = None          # /sys/class/drm/cardX/device
@@ -86,6 +92,10 @@ class GpuMetrics(Metrics):
             return False
 
     def _is_amd_available(self):
+        """Linux-specific: Check for AMD GPU via sysfs"""
+        if self._is_windows:
+            return False
+            
         # sysfs vendor check
         for vendor_file in glob.glob("/sys/class/drm/card*/device/vendor"):
             try:
@@ -102,6 +112,10 @@ class GpuMetrics(Metrics):
             return False
 
     def _is_intel_available(self):
+        """Linux-specific: Check for Intel GPU via sysfs"""
+        if self._is_windows:
+            return False
+            
         for vendor_file in glob.glob("/sys/class/drm/card*/device/vendor"):
             try:
                 with open(vendor_file) as f:

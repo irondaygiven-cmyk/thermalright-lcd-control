@@ -137,7 +137,13 @@ class FrameManager:
         self.frame_duration = self.gif_durations[0]
 
     def _load_video(self):
-        """Load a video and retrieve FPS from metadata"""
+        """
+        Load a video and retrieve FPS from metadata.
+        
+        Note: OpenCV VideoCapture only reads video frames - audio is automatically
+        ignored and will NOT be played. This ensures silent video playback for the
+        LCD display.
+        """
         if not os.path.exists(self.config.background_path):
             raise FileNotFoundError(f"Background video not found: {self.config.background_path}")
 
@@ -150,6 +156,7 @@ class FrameManager:
             raise RuntimeError(
                 f"Unsupported video format '{file_ext}'. Supported formats: {', '.join(self.SUPPORTED_VIDEO_FORMATS)}")
 
+        # OpenCV VideoCapture reads only video frames, audio is automatically ignored
         video_capture = cv2.VideoCapture(self.config.background_path)
         if not video_capture.isOpened():
             raise RuntimeError(
@@ -171,11 +178,12 @@ class FrameManager:
 
         video_capture.release()
 
-        self.logger.info(f"Video loaded: {os.path.basename(self.config.background_path)}")
+        self.logger.info(f"Video loaded: {os.path.basename(self.config.background_path)} (audio disabled)")
         self.logger.info(f"  Format: {os.path.splitext(self.config.background_path)[1].upper()}")
         self.logger.info(f"  FPS: {fps:.2f}")
         self.logger.info(f"  Duration: {duration:.1f}s")
         self.logger.info(f"  Frame duration: {self.frame_duration:.3f}s")
+        self.logger.info(f"  Total frames loaded: {len(self.background_frames)}")
 
     def _load_image_collection(self):
         """Load an image collection from a folder"""
