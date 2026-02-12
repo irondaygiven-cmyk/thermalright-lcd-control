@@ -107,7 +107,27 @@ That's it! The application is now installed. You can see the default theme displ
 
 2. **Extract** the package to a directory (e.g., `C:\Program Files\thermalright-lcd-control`)
 
-3. **Install dependencies** using pip:
+3. **Run the installer** (Recommended):
+   
+   **PowerShell (Recommended):**
+   ```powershell
+   # Right-click PowerShell, select "Run as Administrator"
+   .\install_windows.ps1
+   ```
+   
+   **Or Batch File:**
+   ```cmd
+   # Right-click install_windows.bat, select "Run as Administrator"
+   ```
+   
+   The installer will:
+   - Check for Python and pip
+   - **Automatically detect iStripper and VLC** if installed
+   - Install all required dependencies
+   - Create a configuration file with detected application paths
+   - Optionally create a desktop shortcut
+
+4. **Manual installation** (Alternative):
    ```powershell
    # Core dependencies (required)
    pip install PySide6 hid psutil opencv-python pyusb pillow pyyaml
@@ -116,7 +136,7 @@ That's it! The application is now installed. You can see the default theme displ
    pip install mss pygetwindow
    ```
 
-4. **Run the application**:
+5. **Run the application**:
    ```powershell
    python -m thermalright_lcd_control.main_gui
    ```
@@ -192,6 +212,14 @@ display:
 #### iStripper Integration
 
 Capture and display content from iStripper or any other application window:
+
+**Automatic Detection:**
+
+The Windows installer automatically searches for iStripper and VLC installations:
+- Searches Program Files and Program Files (x86) directories
+- Checks common installation subdirectories
+- Saves detected paths to configuration file
+- Shows detected applications at the end of installation
 
 **Setup:**
 

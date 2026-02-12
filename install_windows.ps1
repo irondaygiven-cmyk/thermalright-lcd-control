@@ -52,6 +52,78 @@ try {
     exit 1
 }
 
+# Function to search for an application in Program Files
+function Find-Application {
+    param(
+        [string]$AppName,
+        [string[]]$ExecutableNames,
+        [string[]]$CommonSubdirs
+    )
+    
+    # Get Program Files directories
+    $programFilesDirs = @()
+    if ($env:ProgramFiles) { $programFilesDirs += $env:ProgramFiles }
+    if ($env:ProgramW6432) { $programFilesDirs += $env:ProgramW6432 }
+    if (${env:ProgramFiles(x86)}) { $programFilesDirs += ${env:ProgramFiles(x86)} }
+    
+    # Remove duplicates and non-existent paths
+    $programFilesDirs = $programFilesDirs | Select-Object -Unique | Where-Object { Test-Path $_ }
+    
+    # First check common subdirectories
+    foreach ($baseDir in $programFilesDirs) {
+        foreach ($subdir in $CommonSubdirs) {
+            $searchPath = Join-Path $baseDir $subdir
+            if (Test-Path $searchPath) {
+                foreach ($exeName in $ExecutableNames) {
+                    $exePath = Join-Path $searchPath $exeName
+                    if (Test-Path $exePath) {
+                        return $exePath
+                    }
+                }
+            }
+        }
+    }
+    
+    # If not found, do a more thorough search (limited depth)
+    foreach ($baseDir in $programFilesDirs) {
+        foreach ($exeName in $ExecutableNames) {
+            $found = Get-ChildItem -Path $baseDir -Filter $exeName -Recurse -ErrorAction SilentlyContinue -Depth 3 | Select-Object -First 1
+            if ($found) {
+                return $found.FullName
+            }
+        }
+    }
+    
+    return $null
+}
+
+# Detect iStripper
+Write-Host "Searching for installed applications..." -ForegroundColor Cyan
+Write-Host ""
+
+$iStripperPath = Find-Application -AppName "iStripper" `
+    -ExecutableNames @("iStripper.exe", "vghd.exe") `
+    -CommonSubdirs @("iStripper", "Totem Entertainment", "VirtuaGirl HD")
+
+if ($iStripperPath) {
+    Write-Host "✓ iStripper detected: $iStripperPath" -ForegroundColor Green
+} else {
+    Write-Host "○ iStripper not found (optional)" -ForegroundColor Yellow
+}
+
+# Detect VLC
+$vlcPath = Find-Application -AppName "VLC" `
+    -ExecutableNames @("vlc.exe") `
+    -CommonSubdirs @("VLC", "VideoLAN\VLC")
+
+if ($vlcPath) {
+    Write-Host "✓ VLC Media Player detected: $vlcPath" -ForegroundColor Green
+} else {
+    Write-Host "○ VLC Media Player not found (optional)" -ForegroundColor Yellow
+}
+
+Write-Host ""
+
 # Install dependencies
 Write-Host "Installing required Python packages..." -ForegroundColor Cyan
 Write-Host "This may take a few minutes..." -ForegroundColor Yellow
@@ -79,10 +151,45 @@ foreach ($package in $packages) {
 }
 
 Write-Host ""
+
+# Create configuration file with detected applications
+$configDir = Join-Path $env:LOCALAPPDATA "thermalright-lcd-control"
+$configFile = Join-Path $configDir "detected_apps.json"
+
+if (-not (Test-Path $configDir)) {
+    New-Item -ItemType Directory -Path $configDir -Force | Out-Null
+}
+
+$detectedApps = @{
+    "istripper_path" = $iStripperPath
+    "vlc_path" = $vlcPath
+    "detection_date" = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+}
+
+$detectedApps | ConvertTo-Json | Set-Content -Path $configFile
+
+Write-Host "Configuration saved to: $configFile" -ForegroundColor Cyan
+Write-Host ""
+
 Write-Host "=========================================="
 Write-Host "Installation completed successfully!" -ForegroundColor Green
 Write-Host "=========================================="
 Write-Host ""
+
+# Show detected applications summary
+if ($iStripperPath -or $vlcPath) {
+    Write-Host "Detected Applications:" -ForegroundColor Cyan
+    if ($iStripperPath) {
+        Write-Host "  • iStripper: $iStripperPath" -ForegroundColor Green
+        Write-Host "    You can capture iStripper content using window capture mode" -ForegroundColor Gray
+    }
+    if ($vlcPath) {
+        Write-Host "  • VLC: $vlcPath" -ForegroundColor Green
+        Write-Host "    You can capture VLC player content using window capture mode" -ForegroundColor Gray
+    }
+    Write-Host ""
+}
+
 Write-Host "To run the application:" -ForegroundColor Cyan
 Write-Host "  python -m thermalright_lcd_control.main_gui" -ForegroundColor Yellow
 Write-Host ""
