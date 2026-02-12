@@ -162,7 +162,7 @@ class WindowCapture:
                         'width': geom.width,
                         'height': geom.height
                     }
-                except:
+                except Exception:
                     return None
             
             def search_windows(window, title):
@@ -178,8 +178,9 @@ class WindowCapture:
                         result = search_windows(child, title)
                         if result:
                             return result
-                except:
-                    pass
+                except Exception as e:
+                    # Window may not be accessible, continue search
+                    self.logger.debug(f"Error accessing window: {e}")
                 return None
             
             root = self._display.screen().root
