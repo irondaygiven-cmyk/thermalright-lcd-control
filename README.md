@@ -170,33 +170,55 @@ See [Add new device](#add-new-device) section to fix image encoding by overridin
 
 ## Usage
 
-### Launch the Application
+### Linux - Launch the Application
 
 - **From Applications Menu**: Search for "Thermalright LCD Control" in your application launcher
 - **From Terminal**: Run `thermalright-lcd-control`
 
-### System Service
+### Linux - System Service
 
 The background service starts automatically after installation. You can manage it using:
 
+```bash
 # Check service status
-
 sudo systemctl status thermalright-lcd-control.service
 
 # Restart service
-
 sudo systemctl restart thermalright-lcd-control.service
 
 # Stop service
-
 sudo systemctl stop thermalright-lcd-control.service
+```
+
+### Windows 11 - Launch the Application
+
+- **Using launcher**: Double-click `run_gui_windows.bat` in the installation directory
+- **From Command Prompt/PowerShell**: 
+  ```powershell
+  python -m thermalright_lcd_control.main_gui
+  ```
+- **Using Desktop Shortcut**: If you created one during installation, double-click it
+
+**Note:** On Windows, the application runs in GUI mode only (no background service mode)
 
 ## System Requirements
 
+### Linux
 - **Operating System**: Ubuntu 20.04+ / Debian 11+ / Other modern Linux distributions
 - **Python**: 3.8 or higher (automatically managed)
 - **Desktop Environment**: Any modern Linux desktop (GNOME, KDE, XFCE, etc.)
 - **Hardware**: Compatible Thermalright LCD device
+- **Additional**: libhidapi or hidapi package
+
+### Windows 11
+- **Operating System**: Windows 11 (may work on Windows 10 with testing)
+- **Python**: 3.8 or higher
+- **Hardware**: Compatible Thermalright LCD device
+- **Additional**: USB HID drivers (usually included with Windows)
+- **For video playback**: OpenCV-supported video codecs
+- **For GPU metrics**: 
+  - NVIDIA GPU: NVIDIA drivers with nvidia-smi
+  - AMD/Intel GPU: Basic support via psutil
 
 ## Add new device
 
