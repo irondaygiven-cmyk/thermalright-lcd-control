@@ -29,7 +29,7 @@ class WindowCapture:
     - Real-time screen capture at configurable FPS
     """
     
-    def __init__(self, window_title: str, target_width: int = 320, target_height: int = 240, fps: int = 30):
+    def __init__(self, window_title: str, target_width: int = 320, target_height: int = 240, fps: int = 30, scale_factor: float = 1.0):
         """
         Initialize window capture.
         
@@ -38,6 +38,7 @@ class WindowCapture:
             target_width: Target width for captured frames
             target_height: Target height for captured frames  
             fps: Frames per second for capture rate
+            scale_factor: Scaling factor for zoom (1.0 = original, <1.0 = zoom out, >1.0 = zoom in)
         """
         self.logger = get_service_logger()
         self.window_title = window_title
@@ -45,6 +46,7 @@ class WindowCapture:
         self.target_height = target_height
         self.fps = fps
         self.frame_interval = 1.0 / fps
+        self.scale_factor = scale_factor
         
         self._is_windows = is_windows()
         self._is_linux = is_linux()
@@ -211,6 +213,48 @@ class WindowCapture:
         
         return None
     
+    def _apply_scaling(self, img: Image.Image) -> Image.Image:
+        """
+        Apply scaling to captured image.
+        
+        Args:
+            img: Input image
+            
+        Returns:
+            Scaled and cropped/padded image
+        """
+        # Apply scale factor if not 1.0
+        if self.scale_factor != 1.0:
+            # Calculate scaled dimensions
+            scaled_width = int(self.target_width * self.scale_factor)
+            scaled_height = int(self.target_height * self.scale_factor)
+            
+            # Resize to scaled dimensions first
+            img = img.resize((scaled_width, scaled_height), Image.Resampling.LANCZOS)
+            
+            # If scale > 1.0 (zoom in), crop to target size from center
+            if self.scale_factor > 1.0:
+                left = (scaled_width - self.target_width) // 2
+                top = (scaled_height - self.target_height) // 2
+                right = left + self.target_width
+                bottom = top + self.target_height
+                img = img.crop((left, top, right, bottom))
+            # If scale < 1.0 (zoom out), pad with black to target size
+            elif self.scale_factor < 1.0:
+                result = Image.new('RGBA', (self.target_width, self.target_height), (0, 0, 0, 255))
+                paste_x = (self.target_width - scaled_width) // 2
+                paste_y = (self.target_height - scaled_height) // 2
+                result.paste(img, (paste_x, paste_y))
+                img = result
+        else:
+            # No scaling, just resize to fit
+            img = img.resize((self.target_width, self.target_height), Image.Resampling.LANCZOS)
+        
+        if img.mode != 'RGBA':
+            img = img.convert('RGBA')
+        
+        return img
+    
     def _capture_frame_mss(self, window_info: dict) -> Optional[Image.Image]:
         """Capture frame using mss (Windows)"""
         monitor = {
@@ -222,10 +266,7 @@ class WindowCapture:
         
         screenshot = self._mss.grab(monitor)
         img = Image.frombytes('RGB', screenshot.size, screenshot.bgra, 'raw', 'BGRX')
-        img = img.resize((self.target_width, self.target_height), Image.Resampling.LANCZOS)
-        
-        if img.mode != 'RGBA':
-            img = img.convert('RGBA')
+        img = self._apply_scaling(img)
         
         return img
     
@@ -241,10 +282,7 @@ class WindowCapture:
         )
         
         img = ImageGrab.grab(bbox)
-        img = img.resize((self.target_width, self.target_height), Image.Resampling.LANCZOS)
-        
-        if img.mode != 'RGBA':
-            img = img.convert('RGBA')
+        img = self._apply_scaling(img)
         
         return img
     
@@ -270,10 +308,7 @@ class WindowCapture:
                 img = Image.open(tmp_path)
                 os.unlink(tmp_path)
                 
-                img = img.resize((self.target_width, self.target_height), Image.Resampling.LANCZOS)
-                
-                if img.mode != 'RGBA':
-                    img = img.convert('RGBA')
+                img = self._apply_scaling(img)
                 
                 return img
         except Exception as e:

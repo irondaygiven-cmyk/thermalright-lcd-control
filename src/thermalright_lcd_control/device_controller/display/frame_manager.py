@@ -123,7 +123,40 @@ class FrameManager:
         self.background_frames = [image]
 
     def _resize_image(self, image: Image.Image) -> Image.Image:
-        image = image.resize((self.config.output_width, self.config.output_height), Image.Resampling.LANCZOS)
+        """
+        Resize and scale image to fit output dimensions.
+        Applies scale_factor for manual zoom adjustment.
+        """
+        target_width = self.config.output_width
+        target_height = self.config.output_height
+        
+        # Apply scale factor if not 1.0
+        if self.config.scale_factor != 1.0:
+            # Calculate scaled dimensions
+            scaled_width = int(target_width * self.config.scale_factor)
+            scaled_height = int(target_height * self.config.scale_factor)
+            
+            # Resize to scaled dimensions first
+            image = image.resize((scaled_width, scaled_height), Image.Resampling.LANCZOS)
+            
+            # If scale > 1.0 (zoom in), crop to target size from center
+            if self.config.scale_factor > 1.0:
+                left = (scaled_width - target_width) // 2
+                top = (scaled_height - target_height) // 2
+                right = left + target_width
+                bottom = top + target_height
+                image = image.crop((left, top, right, bottom))
+            # If scale < 1.0 (zoom out), pad with black to target size
+            elif self.config.scale_factor < 1.0:
+                result = Image.new('RGBA', (target_width, target_height), (0, 0, 0, 255))
+                paste_x = (target_width - scaled_width) // 2
+                paste_y = (target_height - scaled_height) // 2
+                result.paste(image, (paste_x, paste_y))
+                image = result
+        else:
+            # No scaling, just resize to fit
+            image = image.resize((target_width, target_height), Image.Resampling.LANCZOS)
+        
         if image.mode != 'RGBA':
             image = image.convert('RGBA')
         return image
@@ -240,6 +273,7 @@ class FrameManager:
         
         Captures the specified application window in real-time and displays it on the LCD.
         Requires window_title to be set in config.
+        Applies scale_factor for manual zoom adjustment.
         """
         if not HAS_WINDOW_CAPTURE:
             raise RuntimeError(
@@ -251,12 +285,13 @@ class FrameManager:
         if not self.config.window_title:
             raise ValueError("window_title must be specified for WINDOW_CAPTURE background type")
         
-        # Initialize window capture
+        # Initialize window capture with scale factor
         self.window_capture = WindowCapture(
             window_title=self.config.window_title,
             target_width=self.config.output_width,
             target_height=self.config.output_height,
-            fps=self.config.capture_fps
+            fps=self.config.capture_fps,
+            scale_factor=self.config.scale_factor
         )
         
         self.is_window_capture_mode = True
@@ -266,7 +301,8 @@ class FrameManager:
         black_frame = Image.new('RGBA', (self.config.output_width, self.config.output_height), (0, 0, 0, 255))
         self.background_frames = [black_frame]
         
-        self.logger.info(f"Window capture initialized: '{self.config.window_title}' at {self.config.capture_fps} FPS")
+        scale_info = f", scale: {self.config.scale_factor}x" if self.config.scale_factor != 1.0 else ""
+        self.logger.info(f"Window capture initialized: '{self.config.window_title}' at {self.config.capture_fps} FPS{scale_info}")
 
     def _start_metrics_update(self):
         """Start the metrics update thread every second"""

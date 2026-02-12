@@ -37,6 +37,7 @@ and added the option to select a collection of images to cycle through on the di
 - 🎬 **Video playback** - Support for video files (MP4, AVI, MKV, MOV, etc.) without audio, continuous looping
 - 🔄 **Seamless looping** - Videos, GIFs, and image collections loop continuously until changed
 - 🔄 **Display rotation** - Rotate images and videos at any angle (0°, 90°, 180°, 270°, or custom angles)
+- 🔍 **Content scaling** - Manual zoom control for videos and iStripper (zoom in/out with scale_factor)
 - 🖼️ **iStripper integration** - Capture and display content from iStripper or other applications
 - 📋 **System integration** - Native Linux desktop integration
 - 🪟 **Windows 11 support** - Full compatibility with Windows 11
@@ -154,6 +155,40 @@ display:
 - Adjust for display mounting position
 - Correct orientation for window capture
 
+#### Content Scaling (Zoom)
+
+Manually adjust the scale/zoom of videos and iStripper window capture:
+
+**Configuration:** Edit your config YAML file and set the `scale_factor` value:
+
+```yaml
+display:
+  scale_factor: 1.5  # 150% zoom (zoom in)
+  # Other options:
+  # 1.0 - Original size (default, no scaling)
+  # 0.5 - 50% size (zoom out, shows more content with black borders)
+  # 1.5 - 150% size (zoom in, crops edges)
+  # 2.0 - 200% size (2x zoom in, crops more)
+```
+
+**How it works:**
+- **scale_factor = 1.0** - Original size, no scaling applied
+- **scale_factor < 1.0** (e.g., 0.5) - **Zoom out** - Content is smaller with black padding
+- **scale_factor > 1.0** (e.g., 1.5) - **Zoom in** - Content is larger, cropped from center
+
+**Applies to:**
+- ✅ Videos (MP4, AVI, MKV, etc.)
+- ✅ Window capture (iStripper, VLC, etc.)
+- ✅ Static images
+- ✅ GIFs
+- ✅ Image collections
+
+**Use Cases:**
+- Zoom in on iStripper performers
+- Crop unwanted edges from videos
+- Adjust video framing for LCD display
+- Fit content better to your screen
+
 #### iStripper Integration
 
 Capture and display content from iStripper or any other application window:
@@ -177,6 +212,8 @@ Capture and display content from iStripper or any other application window:
        path: ""  # Not used for window capture
      window_title: "iStripper"  # Window title to capture
      capture_fps: 30  # Frame rate for capture (adjust for performance)
+     scale_factor: 1.5  # Optional: Zoom in 1.5x (default is 1.0)
+     rotation: 0  # Optional: Rotate display (default is 0)
    ```
 
 3. **Start iStripper** before launching the LCD control application
@@ -184,7 +221,8 @@ Capture and display content from iStripper or any other application window:
 **Features:**
 - ✅ **Real-time capture** - Live display of application window content
 - ✅ **Configurable FPS** - Adjust capture rate for performance (15-60 FPS)
-- ✅ **Auto-scaling** - Window content automatically resized to LCD resolution
+- ✅ **Manual scaling** - Zoom in/out with scale_factor (see Content Scaling section)
+- ✅ **Rotation support** - Rotate captured content at any angle
 - ✅ **Works with any app** - Not limited to iStripper, works with any window title
 
 **Supported Applications:**
