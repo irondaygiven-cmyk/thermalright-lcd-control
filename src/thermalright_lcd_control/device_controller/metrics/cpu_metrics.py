@@ -3,10 +3,13 @@ import glob, os, re
 import psutil
 from thermalright_lcd_control.device_controller.metrics import Metrics
 from thermalright_lcd_control.common.logging_config import LoggerConfig
+from thermalright_lcd_control.common.platform_utils import is_windows, is_linux
 
 class CpuMetrics(Metrics):
     """
-    AMD-friendly CPU metrics with robust k10temp/zenpower scanning.
+    Cross-platform CPU metrics with platform-specific implementations.
+    Linux: AMD-friendly with robust k10temp/zenpower scanning.
+    Windows: Uses psutil and WMI when available.
     Prefers Tdie > Tctl; falls back to first available temp*_input,
     else psutil, else thermal zones.
     """
@@ -22,6 +25,10 @@ class CpuMetrics(Metrics):
         self._temp_method_cache = None
         self._freq_path_cache = None
         self._hwmon_roots_cache = None
+        
+        # Platform detection
+        self._is_windows = is_windows()
+        self._is_linux = is_linux()
 
     # ---------- helpers ----------
     def _read_float(self, path, scale=1.0):
@@ -32,6 +39,10 @@ class CpuMetrics(Metrics):
             return None
 
     def _list_hwmon_roots(self):
+        """Linux-specific: Cache hwmon roots to avoid repeated scans"""
+        if self._is_windows:
+            return []
+            
         # Cache hwmon roots to avoid repeated scans
         if self._hwmon_roots_cache is not None:
             return self._hwmon_roots_cache
@@ -51,7 +62,10 @@ class CpuMetrics(Metrics):
         return self._hwmon_roots_cache
 
     def _amd_hwmon_candidates(self):
-        """Return list of (root, driver_name_lower) for k10temp/zenpower only."""
+        """Linux-specific: Return list of (root, driver_name_lower) for k10temp/zenpower only."""
+        if self._is_windows:
+            return []
+            
         out = []
         for root in self._list_hwmon_roots():
             for namefile in (os.path.join(root, "name"),
@@ -150,37 +164,41 @@ class CpuMetrics(Metrics):
                 self._temp_path_cache = None
                 self._temp_method_cache = None
 
-        # 1) AMD hwmon direct
-        try:
-            for root, drv in self._amd_hwmon_candidates():
-                v, src = self._pick_best_amd_temp(root)
-                if v is not None:
-                    # Cache the found path
-                    m = re.search(r"(.*temp\d+_input)", src)
-                    if m:
-                        self._temp_path_cache = m.group(1)
-                        self._temp_method_cache = "hwmon"
-                    self.cpu_temp = v
-                    self.logger.debug(f"CPU temp via {drv}: {v:.1f}°C from {src}")
-                    return v
-        except Exception as e:
-            self.logger.debug(f"AMD hwmon read failed: {e}")
+        # 1) AMD hwmon direct (Linux only)
+        if self._is_linux:
+            try:
+                    for root, drv in self._amd_hwmon_candidates():
+                        v, src = self._pick_best_amd_temp(root)
+                        if v is not None:
+                            # Cache the found path
+                            m = re.search(r"(.*temp\d+_input)", src)
+                            if m:
+                                self._temp_path_cache = m.group(1)
+                                self._temp_method_cache = "hwmon"
+                            self.cpu_temp = v
+                            self.logger.debug(f"CPU temp via {drv}: {v:.1f}°C from {src}")
+                            return v
+            except Exception as e:
+                self.logger.debug(f"AMD hwmon read failed: {e}")
 
-        # 2) psutil (may already expose k10temp)
+        # 2) psutil (works on both Windows and Linux)
         try:
             temps = psutil.sensors_temperatures()
-            # Try explicit k10temp/zenpower keys first
-            for key in ("k10temp", "zenpower", "coretemp", "cpu-thermal", "acpitz"):
-                if key in temps and temps[key]:
-                    for idx, e in enumerate(temps[key]):
-                        cur = getattr(e, "current", None)
-                        if cur is not None:
-                            self.cpu_temp = float(cur)
-                            self._temp_path_cache = (key, idx)
-                            self._temp_method_cache = "psutil"
-                            self.logger.debug(f"CPU temp via psutil[{key}]: {self.cpu_temp:.1f}°C")
-                            return self.cpu_temp
-            # Otherwise, heuristically pick the first with a plausible current
+            
+            # On Linux, try explicit keys first
+            if self._is_linux:
+                for key in ("k10temp", "zenpower", "coretemp", "cpu-thermal", "acpitz"):
+                    if key in temps and temps[key]:
+                        for idx, e in enumerate(temps[key]):
+                            cur = getattr(e, "current", None)
+                            if cur is not None:
+                                self.cpu_temp = float(cur)
+                                self._temp_path_cache = (key, idx)
+                                self._temp_method_cache = "psutil"
+                                self.logger.debug(f"CPU temp via psutil[{key}]: {self.cpu_temp:.1f}°C")
+                                return self.cpu_temp
+            
+            # Otherwise (Windows or fallback), heuristically pick the first with a plausible current
             for name, entries in temps.items():
                 for idx, e in enumerate(entries):
                     cur = getattr(e, "current", None)
@@ -193,25 +211,26 @@ class CpuMetrics(Metrics):
         except Exception as e:
             self.logger.debug(f"psutil sensors_temperatures failed: {e}")
 
-        # 3) thermal zones (types include k10temp/zenpower/x86_pkg_temp/cpu)
-        try:
-            for type_file in glob.glob("/sys/class/thermal/thermal_zone*/type"):
-                try:
-                    tname = open(type_file).read().strip().lower()
-                except Exception:
-                    continue
-                if not any(k in tname for k in ("k10temp", "zenpower", "x86_pkg_temp", "cpu")):
-                    continue
-                tfile = os.path.join(os.path.dirname(type_file), "temp")
-                v = self._read_float(tfile, 1/1000.0)
-                if v is not None and 0.0 < v < 120.0:
-                    self.cpu_temp = v
-                    self._temp_path_cache = tfile
-                    self._temp_method_cache = "thermal"
-                    self.logger.debug(f"CPU temp via thermal zone '{tname}': {v:.1f}°C")
-                    return v
-        except Exception as e:
-            self.logger.debug(f"thermal zones failed: {e}")
+        # 3) thermal zones (Linux only - types include k10temp/zenpower/x86_pkg_temp/cpu)
+        if self._is_linux:
+            try:
+                for type_file in glob.glob("/sys/class/thermal/thermal_zone*/type"):
+                    try:
+                        tname = open(type_file).read().strip().lower()
+                    except Exception:
+                        continue
+                    if not any(k in tname for k in ("k10temp", "zenpower", "x86_pkg_temp", "cpu")):
+                        continue
+                    tfile = os.path.join(os.path.dirname(type_file), "temp")
+                    v = self._read_float(tfile, 1/1000.0)
+                    if v is not None and 0.0 < v < 120.0:
+                        self.cpu_temp = v
+                        self._temp_path_cache = tfile
+                        self._temp_method_cache = "thermal"
+                        self.logger.debug(f"CPU temp via thermal zone '{tname}': {v:.1f}°C")
+                        return v
+            except Exception as e:
+                self.logger.debug(f"thermal zones failed: {e}")
 
         self.logger.warning("CPU temperature unavailable")
         return None
@@ -228,6 +247,10 @@ class CpuMetrics(Metrics):
 
     # ---------- frequency ----------
     def _cpufreq_sysfs(self):
+        """Linux-specific: Read CPU frequency from sysfs"""
+        if self._is_windows:
+            return None
+            
         # Use cache if available
         if self._freq_path_cache:
             v = self._read_float(self._freq_path_cache, 1/1000.0)
