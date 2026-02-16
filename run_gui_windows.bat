@@ -56,7 +56,7 @@ if defined VENV_PATH (
     
     REM Check if Python is available on the system
     where python >nul 2>&1
-    if %errorLevel% equ 0 (
+    if !errorLevel! equ 0 (
         echo Attempting to run with system Python...
         echo This may fail if dependencies are not installed globally.
         echo.
@@ -79,7 +79,7 @@ if defined VENV_PATH (
 REM Run the application using the determined Python executable
 "%PYTHON_EXE%" -m thermalright_lcd_control.main_gui
 
-set "EXIT_CODE=%errorLevel%"
+set "EXIT_CODE=!errorLevel!"
 endlocal
 
 if %EXIT_CODE% neq 0 (
