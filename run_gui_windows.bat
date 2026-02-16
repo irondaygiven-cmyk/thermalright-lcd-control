@@ -56,8 +56,7 @@ if defined VENV_PATH (
 
     REM Check if Python is available on the system
     where python >nul 2>&1
-    set "PYTHON_CHECK=!errorLevel!"
-    if !PYTHON_CHECK! equ 0 (
+    if !errorLevel! equ 0 (
         echo Attempting to run with system Python...
         echo This may fail if dependencies are not installed globally.
         echo.
