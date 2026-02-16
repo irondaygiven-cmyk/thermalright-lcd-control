@@ -16,19 +16,19 @@ if exist "%LOCAL_VENV%\Scripts\python.exe" (
     echo Using Python from: !PYTHON_EXE!
     echo.
     goto :run_app
-)
-
-REM If not found, search for venv in subfolders (excluding already checked 'venv')
-echo Local venv not found, searching subfolders...
-for /d %%d in ("%~dp0*") do (
-    REM Skip the already-checked venv directory
-    if /i not "%%~nxd"=="venv" (
-        if exist "%%d\Scripts\python.exe" (
-            echo Found virtual environment in subfolder: %%d
-            set "PYTHON_EXE=%%d\Scripts\python.exe"
-            echo Using Python from: !PYTHON_EXE!
-            echo.
-            goto :run_app
+) else (
+    REM If not found, search for venv in subfolders (excluding 'venv')
+    echo Local venv not found, searching subfolders...
+    for /d %%d in ("%~dp0*") do (
+        REM Skip the already-checked venv directory
+        if /i not "%%~nxd"=="venv" (
+            if exist "%%d\Scripts\python.exe" (
+                echo Found virtual environment in subfolder: %%d
+                set "PYTHON_EXE=%%d\Scripts\python.exe"
+                echo Using Python from: !PYTHON_EXE!
+                echo.
+                goto :run_app
+            )
         )
     )
 )
@@ -90,9 +90,9 @@ if !errorLevel! neq 0 (
     echo  2. You have run install_windows.bat to set up the virtual environment
     echo  3. Dependencies are installed in the virtual environment
     echo.
-    endlocal
     echo Press any key to exit...
     pause >nul
+    endlocal
     exit /b 1
 )
 
