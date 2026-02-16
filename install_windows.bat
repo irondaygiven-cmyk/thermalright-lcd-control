@@ -14,7 +14,7 @@ if %errorLevel% neq 0 (
     echo Not running as Administrator. Elevating privileges...
     echo.
     REM Re-launch as administrator using PowerShell with persistent window
-    powershell -NoExit -Command "Start-Process cmd -ArgumentList '/K cd /d \"%CD%\" && \"%~f0\"' -Verb RunAs"
+    powershell -Command "Start-Process cmd -ArgumentList '/K cd /d \"%CD%\" && \"%~f0\"' -Verb RunAs"
     exit /b 0
 )
 
@@ -61,8 +61,8 @@ if not exist "%VENV_DIR%" (
     if %errorLevel% neq 0 (
         echo ERROR: Failed to create virtual environment
         echo.
-        echo Make sure Python venv module is installed
-        echo You can install it with: python -m pip install --user virtualenv
+        echo The Python venv module appears to be missing or incomplete.
+        echo Please reinstall Python with all standard library modules included.
         echo.
         echo Press any key to exit...
         pause >nul
