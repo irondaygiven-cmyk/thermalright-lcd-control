@@ -41,6 +41,9 @@ thermalright-lcd-control-service = "thermalright_lcd_control.service:main"
 thermalright-lcd-control-diagnostics = "thermalright_lcd_control.diagnostics.system_checker:main"
 thermalright-lcd-control-tray = "thermalright_lcd_control.ui.system_tray:main"
 thermalright-lcd-control-service-manager = "thermalright_lcd_control.service.windows_service_manager:main"
+thermalright-lcd-control-task-scheduler = "thermalright_lcd_control.utils.task_scheduler:main"
+thermalright-lcd-control-codec-check = "thermalright_lcd_control.utils.codec_detector:main"
+thermalright-lcd-control-zadig = "thermalright_lcd_control.utils.zadig_manager:main"
 
 # Configuration Hatchling
 [tool.hatch.build.targets.wheel]
