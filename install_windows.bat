@@ -199,7 +199,7 @@ for %%d in (D E F G H I J K L M N O P Q R S T U V W X Y Z) do (
 :found_istripper
 if defined ISTRIPPER_PATH (
     echo [OK] iStripper detected: !ISTRIPPER_PATH!
-    endlocal & set "GLOBAL_ISTRIPPER_PATH=%ISTRIPPER_PATH%"
+    for %%A in ("!ISTRIPPER_PATH!") do endlocal & set "GLOBAL_ISTRIPPER_PATH=%%~A"
 ) else (
     echo [--] iStripper not found (optional)
     endlocal & set "GLOBAL_ISTRIPPER_PATH="
@@ -233,7 +233,7 @@ for %%D in (%SEARCH_DIRS%) do (
 :found_vlc
 if defined VLC_PATH (
     echo [OK] VLC Media Player detected: !VLC_PATH!
-    endlocal & set "GLOBAL_VLC_PATH=%VLC_PATH%"
+    for %%A in ("!VLC_PATH!") do endlocal & set "GLOBAL_VLC_PATH=%%~A"
 ) else (
     echo [--] VLC Media Player not found (optional)
     endlocal & set "GLOBAL_VLC_PATH="
