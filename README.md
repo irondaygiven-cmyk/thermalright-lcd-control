@@ -375,6 +375,27 @@ sudo systemctl stop thermalright-lcd-control.service
 
 The application now supports running as a Windows service that starts automatically with your system:
 
+#### Option 1: Task Scheduler (Recommended)
+
+Lighter weight alternative to Windows Service:
+
+```powershell
+# Install auto-start task
+python -m thermalright_lcd_control.utils.task_scheduler install
+
+# Check status
+python -m thermalright_lcd_control.utils.task_scheduler status
+```
+
+**Advantages:**
+- Starts at user logon (not system startup)
+- Easier to manage
+- No administrator required after setup
+
+#### Option 2: Windows Service
+
+For advanced users who need system-level control.
+
 #### Install Windows Service
 
 1. **Open PowerShell or Command Prompt as Administrator**
@@ -457,6 +478,45 @@ Service logs are written to Windows Event Viewer:
 1. Press `Win + R` and type `eventvwr.msc`
 2. Navigate to: Windows Logs → Application
 3. Look for events from source "ThermalrightLCDControl"
+
+### Windows 11 - Enhanced Features
+
+#### USB Driver Installation Wizard
+
+Install USB drivers easily with visual wizard:
+
+```powershell
+# Launch USB driver wizard
+python -m thermalright_lcd_control.gui.wizards.usb_driver_wizard
+```
+
+The wizard will:
+- Auto-detect your device
+- Download Zadig automatically
+- Guide you through installation
+- Verify driver is working
+
+#### Video Codec Detection
+
+Check and install video codecs for video playback:
+
+```powershell
+# Check installed codecs
+python -m thermalright_lcd_control.utils.codec_detector
+```
+
+Recommends K-Lite Codec Pack if needed.
+
+#### iStripper Configuration Wizard
+
+Visual setup wizard for iStripper integration:
+
+- Live preview of window capture
+- Adjust FPS, scale, rotation with sliders
+- One-click configuration save
+- No manual YAML editing required
+
+**See [Windows 11 Setup Guide](docs/WINDOWS11_SETUP.md) for complete documentation.**
 
 ## System Requirements
 
