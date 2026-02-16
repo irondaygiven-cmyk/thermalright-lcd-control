@@ -285,3 +285,52 @@ def detect_applications(search_all_drives: bool = False) -> Dict[str, Optional[s
     
     # Convert Path objects to strings
     return {app: str(path) if path else None for app, path in results.items()}
+
+
+def detect_istripper_content_directory(istripper_path: Optional[str] = None) -> Optional[str]:
+    """
+    Detect iStripper content directory containing model shows/data.
+    
+    Args:
+        istripper_path: Path to iStripper executable (will auto-detect if not provided)
+    
+    Returns:
+        Path to content directory as string, or None if not found
+    """
+    if not is_windows():
+        return None
+    
+    # If no path provided, detect it first
+    if not istripper_path:
+        apps = detect_applications()
+        istripper_path = apps.get('istripper')
+        
+        if not istripper_path:
+            return None
+    
+    # Use IStripperManager for content directory detection
+    try:
+        from thermalright_lcd_control.integrations.istripper_manager import IStripperManager
+        manager = IStripperManager()
+        manager.installation_path = Path(istripper_path)
+        
+        content_dir = manager.detect_content_directory()
+        return str(content_dir) if content_dir else None
+        
+    except Exception:
+        # Fallback to simple detection
+        install_dir = Path(istripper_path).parent
+        
+        # Common content directory names
+        for dir_name in ['DATA', 'data', 'Models', 'models', 'Shows', 'shows']:
+            content_path = install_dir / dir_name
+            if content_path.exists() and content_path.is_dir():
+                # Verify it contains subdirectories (models)
+                try:
+                    subdirs = [d for d in content_path.iterdir() if d.is_dir()]
+                    if subdirs:
+                        return str(content_path)
+                except Exception:
+                    pass
+        
+        return None

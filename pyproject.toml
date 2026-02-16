@@ -22,10 +22,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Windows-specific dependencies for window capture (iStripper integration)
+# Windows-specific dependencies for window capture (iStripper integration) and service support
 windows = [
     "mss>=9.0.0",  # Fast screen capture
     "pygetwindow>=0.0.9",  # Window management
+    "pywin32>=306",  # Windows services support
+    "wmi>=1.5.1",  # Windows Management Instrumentation for GPU metrics
 ]
 
 # Linux-specific dependencies for window capture
@@ -36,6 +38,12 @@ linux = [
 [project.scripts]
 thermalright-lcd-control-gui = "thermalright_lcd_control.main_gui:main"
 thermalright-lcd-control-service = "thermalright_lcd_control.service:main"
+thermalright-lcd-control-diagnostics = "thermalright_lcd_control.diagnostics.system_checker:main"
+thermalright-lcd-control-tray = "thermalright_lcd_control.ui.system_tray:main"
+thermalright-lcd-control-service-manager = "thermalright_lcd_control.service.windows_service_manager:main"
+thermalright-lcd-control-task-scheduler = "thermalright_lcd_control.utils.task_scheduler:main"
+thermalright-lcd-control-codec-check = "thermalright_lcd_control.utils.codec_detector:main"
+thermalright-lcd-control-zadig = "thermalright_lcd_control.utils.zadig_manager:main"
 
 # Configuration Hatchling
 [tool.hatch.build.targets.wheel]

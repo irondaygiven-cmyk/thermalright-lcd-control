@@ -214,7 +214,39 @@ display:
 
 #### iStripper Integration
 
-Capture and display content from iStripper or any other application window:
+Capture and display content from iStripper in two ways:
+
+**Method 1: Use Installed Model Content (NEW!)**
+
+Access your actual iStripper model videos and images directly:
+
+```python
+from thermalright_lcd_control.integrations.istripper_manager import IStripperManager
+
+# Detect and access your model library
+manager = IStripperManager()
+manager.detect_installation()
+
+# List your installed models
+models = manager.list_model_directories()
+print(f"Found {len(models)} models")
+
+# Get videos from a model
+videos = manager.get_model_media_files(models[0], extensions=['.mp4'])
+# Use videos[0] as background in your config
+```
+
+**Benefits:**
+- Use actual model videos as backgrounds
+- No window capture needed
+- Better performance and quality
+- Create playlists from your collection
+
+**See:** [iStripper Content Usage Guide](docs/ISTRIPPER_CONTENT_USAGE.md) for detailed examples and API reference.
+
+**Method 2: Window Capture (Original Method)**
+
+Capture the iStripper window in real-time:
 
 **Automatic Detection:**
 
@@ -310,11 +342,35 @@ See [Add new device](#add-new-device) section to fix image encoding by overridin
 **Metrics not showing:**
 - CPU/GPU temperature requires appropriate drivers installed
 - For NVIDIA GPUs, ensure nvidia-smi is accessible from command line
-- For AMD/Intel GPUs on Windows, metrics are limited to what psutil can detect
+- For AMD/Intel GPUs on Windows:
+  - Install WMI support: `pip install wmi` (included in windows extras)
+  - For enhanced metrics, install OpenHardwareMonitor
+- Run diagnostics: `python -m thermalright_lcd_control.diagnostics.system_checker`
 
 **Performance issues:**
 - Large video files are loaded entirely into memory - use shorter videos or lower resolutions
 - Close other applications that may interfere with USB communication
+
+## System Diagnostics
+
+Run the built-in diagnostics tool to check your system configuration:
+
+```bash
+# Run system diagnostics
+python -m thermalright_lcd_control.diagnostics.system_checker
+```
+
+The diagnostics tool checks:
+- ✓ Python version (3.10+ required)
+- ✓ All required dependencies
+- ✓ USB device detection
+- ✓ GPU detection and driver support
+- ✓ Window capture dependencies (for iStripper)
+- ✓ Windows service support (Windows only)
+- ✓ Administrator privileges (Windows only)
+- ✓ iStripper installation (if present)
+
+The tool will provide actionable fix suggestions for any issues detected.
 
 ## Usage
 
@@ -347,7 +403,152 @@ sudo systemctl stop thermalright-lcd-control.service
   ```
 - **Using Desktop Shortcut**: If you created one during installation, double-click it
 
-**Note:** On Windows, the application runs in GUI mode only (no background service mode)
+### Windows 11 - Background Service (NEW!)
+
+The application now supports running as a Windows service that starts automatically with your system:
+
+#### Option 1: Task Scheduler (Recommended)
+
+Lighter weight alternative to Windows Service:
+
+```powershell
+# Install auto-start task
+python -m thermalright_lcd_control.utils.task_scheduler install
+
+# Check status
+python -m thermalright_lcd_control.utils.task_scheduler status
+```
+
+**Advantages:**
+- Starts at user logon (not system startup)
+- Easier to manage
+- No administrator required after setup
+
+#### Option 2: Windows Service
+
+For advanced users who need system-level control.
+
+#### Install Windows Service
+
+1. **Open PowerShell or Command Prompt as Administrator**
+2. **Navigate to the installation directory**
+3. **Run the installer script:**
+   ```powershell
+   # Using PowerShell
+   .\scripts\windows\install_windows_service.ps1
+   
+   # Or using batch file
+   scripts\windows\install_windows_service.bat
+   ```
+
+The installer will:
+- Check for required dependencies (pywin32)
+- Install the Windows service
+- Configure it to start automatically
+- Optionally start the service immediately
+
+#### Manage Windows Service
+
+**Using Command Line:**
+```powershell
+# Start service
+net start ThermalrightLCDControl
+
+# Stop service
+net stop ThermalrightLCDControl
+
+# Check service status
+sc query ThermalrightLCDControl
+
+# Restart service
+net stop ThermalrightLCDControl && net start ThermalrightLCDControl
+```
+
+**Using Service Manager CLI:**
+```powershell
+# Start the service
+python -m thermalright_lcd_control.service.windows_service_manager start
+
+# Stop the service
+python -m thermalright_lcd_control.service.windows_service_manager stop
+
+# Check status
+python -m thermalright_lcd_control.service.windows_service_manager status
+
+# Restart
+python -m thermalright_lcd_control.service.windows_service_manager restart
+```
+
+**Using System Tray Icon:**
+```powershell
+# Launch system tray icon for easy control
+python -m thermalright_lcd_control.ui.system_tray
+```
+
+The system tray icon provides:
+- Service status indicator (running/stopped)
+- Right-click menu for Start/Stop/Restart
+- Quick access to configuration
+- Quick access to GUI
+
+#### Uninstall Windows Service
+
+To remove the Windows service:
+
+```powershell
+# Using PowerShell
+.\scripts\windows\uninstall_windows_service.ps1
+
+# Or using batch file
+scripts\windows\uninstall_windows_service.bat
+```
+
+#### View Service Logs
+
+Service logs are written to Windows Event Viewer:
+
+1. Press `Win + R` and type `eventvwr.msc`
+2. Navigate to: Windows Logs → Application
+3. Look for events from source "ThermalrightLCDControl"
+
+### Windows 11 - Enhanced Features
+
+#### USB Driver Installation Wizard
+
+Install USB drivers easily with visual wizard:
+
+```powershell
+# Launch USB driver wizard
+python -m thermalright_lcd_control.gui.wizards.usb_driver_wizard
+```
+
+The wizard will:
+- Auto-detect your device
+- Download Zadig automatically
+- Guide you through installation
+- Verify driver is working
+
+#### Video Codec Detection
+
+Check and install video codecs for video playback:
+
+```powershell
+# Check installed codecs
+python -m thermalright_lcd_control.utils.codec_detector
+```
+
+Recommends K-Lite Codec Pack if needed.
+
+#### iStripper Configuration Wizard
+
+Visual setup wizard for iStripper integration:
+
+- Live preview of window capture
+- Adjust FPS, scale, rotation with sliders
+- One-click configuration save
+- No manual YAML editing required
+
+**See [Windows 11 Setup Guide](docs/WINDOWS11_SETUP.md) for complete documentation.**
 
 ## System Requirements
 
@@ -359,14 +560,17 @@ sudo systemctl stop thermalright-lcd-control.service
 - **Additional**: libhidapi or hidapi package
 
 ### Windows 11
-- **Operating System**: Windows 11 (may work on Windows 10 with testing)
-- **Python**: 3.8 or higher
+- **Operating System**: Windows 11 or Windows 10 (21H2+)
+- **Python**: 3.10 or higher
 - **Hardware**: Compatible Thermalright LCD device
 - **Additional**: USB HID drivers (usually included with Windows)
 - **For video playback**: OpenCV-supported video codecs
+- **For Windows Service**: pywin32 package (auto-installed)
 - **For GPU metrics**: 
   - NVIDIA GPU: NVIDIA drivers with nvidia-smi
-  - AMD/Intel GPU: Basic support via psutil
+  - AMD GPU: WMI support (basic metrics on Windows)
+  - Intel GPU: WMI support (basic metrics on Windows)
+- **For enhanced GPU metrics**: Install OpenHardwareMonitor for detailed AMD/Intel metrics
 
 ## Add new device
 
