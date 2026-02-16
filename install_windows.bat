@@ -88,10 +88,42 @@ if %errorLevel% neq 0 (
 echo Virtual environment activated.
 echo.
 
+REM Install the package with dependencies
+echo Installing thermalright-lcd-control package and dependencies...
+echo.
+
+REM Upgrade pip first
+python -m pip install --upgrade pip
+if %errorLevel% neq 0 (
+    echo Warning: Failed to upgrade pip, continuing with current version...
+)
+
+REM Install with Windows-specific extras
+python -m pip install -e .[windows]
+
+if %errorLevel% neq 0 (
+    echo ERROR: Failed to install package dependencies
+    echo.
+    echo Press any key to exit...
+    pause >nul
+    exit /b 1
+)
+
+echo.
+echo [OK] Package installed successfully
+echo.
+
 REM Detect installed applications
 echo Searching for installed applications...
 echo.
 
+REM Use subroutines to avoid setlocal/endlocal issues with goto
+call :detect_istripper
+call :detect_vlc
+
+goto :save_config
+
+:detect_istripper
 setlocal enabledelayedexpansion
 
 REM Search for iStripper
@@ -167,9 +199,15 @@ for %%d in (D E F G H I J K L M N O P Q R S T U V W X Y Z) do (
 :found_istripper
 if defined ISTRIPPER_PATH (
     echo [OK] iStripper detected: !ISTRIPPER_PATH!
+    for %%A in ("!ISTRIPPER_PATH!") do endlocal & set "GLOBAL_ISTRIPPER_PATH=%%~A"
 ) else (
     echo [--] iStripper not found (optional)
+    endlocal & set "GLOBAL_ISTRIPPER_PATH="
 )
+exit /b
+
+:detect_vlc
+setlocal enabledelayedexpansion
 
 REM Search for VLC
 set "VLC_PATH="
@@ -195,30 +233,15 @@ for %%D in (%SEARCH_DIRS%) do (
 :found_vlc
 if defined VLC_PATH (
     echo [OK] VLC Media Player detected: !VLC_PATH!
+    for %%A in ("!VLC_PATH!") do endlocal & set "GLOBAL_VLC_PATH=%%~A"
 ) else (
     echo [--] VLC Media Player not found (optional)
+    endlocal & set "GLOBAL_VLC_PATH="
 )
-
 echo.
+exit /b
 
-REM Install dependencies
-echo Installing required Python packages into virtual environment...
-echo This may take a few minutes...
-echo.
-
-python -m pip install --upgrade pip
-python -m pip install PySide6>=6.10.0 hid>=1.0.8 psutil>=7.1.3 opencv-python>=4.12.0.88 pyusb>=1.3.1 pillow>=12.0.0 pyyaml>=6.0.2
-
-if %errorLevel% neq 0 (
-    echo.
-    echo ERROR: Failed to install dependencies
-    echo.
-    echo Press any key to exit...
-    pause >nul
-    exit /b 1
-)
-
-echo.
+:save_config
 
 REM Create configuration file with detected applications
 set "CONFIG_DIR=%LOCALAPPDATA%\thermalright-lcd-control"
@@ -231,8 +254,8 @@ if not exist "%CONFIG_DIR%" (
 REM Create JSON config file
 (
 echo {
-echo   "istripper_path": "!ISTRIPPER_PATH!",
-echo   "vlc_path": "!VLC_PATH!",
+echo   "istripper_path": "%GLOBAL_ISTRIPPER_PATH%",
+echo   "vlc_path": "%GLOBAL_VLC_PATH%",
 echo   "detection_date": "%DATE% %TIME%"
 echo }
 ) > "%CONFIG_FILE%"
@@ -246,27 +269,29 @@ echo ==========================================
 echo.
 
 REM Show detected applications summary
-if defined ISTRIPPER_PATH (
+if defined GLOBAL_ISTRIPPER_PATH (
     echo Detected Applications:
-    echo   - iStripper: !ISTRIPPER_PATH!
+    echo   - iStripper: %GLOBAL_ISTRIPPER_PATH%
     echo     You can capture iStripper content using window capture mode
     echo.
 )
 
-if defined VLC_PATH (
-    if not defined ISTRIPPER_PATH echo Detected Applications:
-    echo   - VLC: !VLC_PATH!
+if defined GLOBAL_VLC_PATH (
+    if not defined GLOBAL_ISTRIPPER_PATH echo Detected Applications:
+    echo   - VLC: %GLOBAL_VLC_PATH%
     echo     You can capture VLC player content using window capture mode
     echo.
 )
 
-echo To run the application:
+echo You can now run the application using:
+echo   - run_gui_windows.bat (for GUI)
+echo   - Other scripts as documented in README.md
+echo.
+echo To run manually:
 echo   1. Activate the virtual environment:
 echo      %VENV_DIR%\Scripts\activate.bat
 echo   2. Run the application:
 echo      python -m thermalright_lcd_control.main_gui
-echo.
-echo Or simply double-click run_gui_windows.bat
 echo.
 echo Note: Video playback is enabled without audio by default
 echo Supported video formats: MP4, AVI, MKV, MOV, WEBM, FLV, WMV, M4V
