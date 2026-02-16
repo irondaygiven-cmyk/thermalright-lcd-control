@@ -79,8 +79,9 @@ if defined VENV_PATH (
 REM Run the application using the determined Python executable
 "%PYTHON_EXE%" -m thermalright_lcd_control.main_gui
 
+REM Save exit code and end local scope, preserving the exit code
 set "EXIT_CODE=!errorLevel!"
-endlocal
+endlocal & set "EXIT_CODE=%EXIT_CODE%"
 
 if %EXIT_CODE% neq 0 (
     echo.
