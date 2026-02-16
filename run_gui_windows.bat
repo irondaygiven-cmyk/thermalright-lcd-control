@@ -53,7 +53,7 @@ if defined VENV_PATH (
     echo Warning: No virtual environment found
     echo Please run install_windows.bat first to create the virtual environment
     echo.
-    
+
     REM Check if Python is available on the system
     where python >nul 2>&1
     set "PYTHON_CHECK=!errorLevel!"
