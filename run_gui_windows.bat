@@ -56,7 +56,8 @@ if defined VENV_PATH (
     
     REM Check if Python is available on the system
     where python >nul 2>&1
-    if !errorLevel! equ 0 (
+    set "PYTHON_CHECK=!errorLevel!"
+    if !PYTHON_CHECK! equ 0 (
         echo Attempting to run with system Python...
         echo This may fail if dependencies are not installed globally.
         echo.
@@ -68,6 +69,7 @@ if defined VENV_PATH (
         echo  1. Run install_windows.bat to create a virtual environment, or
         echo  2. Install Python and add it to PATH
         echo.
+        endlocal
         echo Press any key to exit...
         pause >nul
         exit /b 1
@@ -79,11 +81,8 @@ if defined VENV_PATH (
 REM Run the application using the determined Python executable
 "%PYTHON_EXE%" -m thermalright_lcd_control.main_gui
 
-REM Save exit code and end local scope, preserving the exit code
-set "EXIT_CODE=!errorLevel!"
-endlocal & set "EXIT_CODE=%EXIT_CODE%"
-
-if %EXIT_CODE% neq 0 (
+REM Check exit code and display error message if needed
+if !errorLevel! neq 0 (
     echo.
     echo ERROR: Failed to start the application
     echo.
@@ -92,10 +91,12 @@ if %EXIT_CODE% neq 0 (
     echo  2. You have run install_windows.bat to set up the virtual environment
     echo  3. Dependencies are installed in the virtual environment
     echo.
+    endlocal
     echo Press any key to exit...
     pause >nul
     exit /b 1
 )
 
 REM If application exits normally, don't show the pause message
+endlocal
 exit /b 0
