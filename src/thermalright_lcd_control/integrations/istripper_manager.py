@@ -441,7 +441,7 @@ class IStripperManager:
             self.logger.error(f"Error listing model directories: {e}")
             return []
     
-    def get_model_media_files(self, model_dir: Path, extensions: list = None) -> list:
+    def get_model_media_files(self, model_dir: Path, extensions: list = None, recursive: bool = True) -> list:
         """
         Get media files from a model directory
         
@@ -449,23 +449,35 @@ class IStripperManager:
             model_dir: Path to model directory
             extensions: List of file extensions to include (e.g., ['.mp4', '.jpg'])
                        If None, includes common video and image formats
+            recursive: If True, search subdirectories recursively (default: True)
         
         Returns:
             List of Path objects for media files
         """
         if extensions is None:
-            extensions = ['.mp4', '.avi', '.mkv', '.mov', '.jpg', '.jpeg', '.png', '.gif']
+            extensions = ['.mp4', '.avi', '.mkv', '.mov', '.webm', 
+                         '.jpg', '.jpeg', '.png', '.gif', '.bmp']
         
         if not model_dir.exists() or not model_dir.is_dir():
             return []
         
         try:
             media_files = []
-            for item in model_dir.rglob('*'):
-                if item.is_file() and item.suffix.lower() in extensions:
-                    media_files.append(item)
             
-            # Sort by name
+            if recursive:
+                # Search recursively through all subdirectories
+                # This matches iStripper's structure where models have multiple subdirectories
+                # for clips, trailers, previews, etc.
+                for item in model_dir.rglob('*'):
+                    if item.is_file() and item.suffix.lower() in extensions:
+                        media_files.append(item)
+            else:
+                # Only search top level
+                for item in model_dir.iterdir():
+                    if item.is_file() and item.suffix.lower() in extensions:
+                        media_files.append(item)
+            
+            # Sort by name for consistent ordering
             media_files.sort(key=lambda x: x.name)
             return media_files
             
@@ -473,13 +485,104 @@ class IStripperManager:
             self.logger.error(f"Error listing media files in {model_dir}: {e}")
             return []
     
-    def get_all_model_media(self, extensions: list = None, limit: int = None) -> dict:
+    def get_model_clips(self, model_dir: Path) -> dict:
+        """
+        Get clips organized by type, matching iStripper's folder structure
+        
+        iStripper typically organizes content as:
+        - clips/ or Clips/ - Main show clips
+        - trailers/ or Trailers/ - Preview trailers
+        - previews/ or Previews/ - Preview images/videos
+        
+        Args:
+            model_dir: Path to model directory
+        
+        Returns:
+            Dictionary with clip types as keys and file lists as values
+        """
+        if not model_dir.exists() or not model_dir.is_dir():
+            return {}
+        
+        clip_types = {
+            'clips': [],
+            'trailers': [],
+            'previews': [],
+            'other': []
+        }
+        
+        try:
+            # Check for common subdirectory names (case-insensitive)
+            for item in model_dir.iterdir():
+                if not item.is_dir():
+                    continue
+                
+                dir_name_lower = item.name.lower()
+                
+                # Categorize based on directory name
+                if dir_name_lower in ['clips', 'clip']:
+                    files = self.get_model_media_files(item, extensions=['.mp4', '.avi', '.mkv', '.webm'])
+                    clip_types['clips'].extend(files)
+                elif dir_name_lower in ['trailers', 'trailer']:
+                    files = self.get_model_media_files(item, extensions=['.mp4', '.avi', '.mkv', '.webm'])
+                    clip_types['trailers'].extend(files)
+                elif dir_name_lower in ['previews', 'preview', 'pics', 'images']:
+                    files = self.get_model_media_files(item, extensions=['.jpg', '.jpeg', '.png', '.gif'])
+                    clip_types['previews'].extend(files)
+                else:
+                    # Unknown subdirectory - add to 'other'
+                    files = self.get_model_media_files(item)
+                    clip_types['other'].extend(files)
+            
+            # Also check root level files
+            root_files = []
+            for item in model_dir.iterdir():
+                if item.is_file():
+                    ext = item.suffix.lower()
+                    if ext in ['.mp4', '.avi', '.mkv', '.mov', '.webm', '.jpg', '.jpeg', '.png', '.gif']:
+                        root_files.append(item)
+            
+            if root_files:
+                clip_types['other'].extend(root_files)
+            
+            # Remove empty categories
+            clip_types = {k: v for k, v in clip_types.items() if v}
+            
+        except Exception as e:
+            self.logger.error(f"Error getting clips from {model_dir}: {e}")
+        
+        return clip_types
+    
+    def get_all_model_clips(self, limit: int = None) -> dict:
+        """
+        Get all models with their clips organized by type
+        
+        Args:
+            limit: Maximum number of models to process (None for all)
+        
+        Returns:
+            Dictionary mapping model names to their clip dictionaries
+        """
+        model_dirs = self.list_model_directories()
+        
+        if limit:
+            model_dirs = model_dirs[:limit]
+        
+        result = {}
+        for model_dir in model_dirs:
+            clips = self.get_model_clips(model_dir)
+            if clips:
+                result[model_dir.name] = clips
+        
+        return result
+    
+    def get_all_model_media(self, extensions: list = None, limit: int = None, include_subdirs: bool = True) -> dict:
         """
         Get all model media files organized by model
         
         Args:
             extensions: List of file extensions to include
             limit: Maximum number of models to process (None for all)
+            include_subdirs: If True, includes files from all subdirectories (default: True)
         
         Returns:
             Dictionary mapping model directory names to lists of media file paths
@@ -491,11 +594,130 @@ class IStripperManager:
         
         result = {}
         for model_dir in model_dirs:
-            media_files = self.get_model_media_files(model_dir, extensions)
+            media_files = self.get_model_media_files(model_dir, extensions, recursive=include_subdirs)
             if media_files:
                 result[model_dir.name] = media_files
         
         return result
+    
+    def get_model_info(self, model_dir: Path) -> dict:
+        """
+        Get comprehensive information about a model, similar to iStripper's data structure
+        
+        Args:
+            model_dir: Path to model directory
+        
+        Returns:
+            Dictionary with model information including:
+            - name: Model folder name
+            - path: Full path to model directory
+            - clips: Organized clips by type
+            - total_files: Count of all media files
+            - total_size: Total size in bytes
+            - subdirectories: List of subdirectory names
+        """
+        if not model_dir.exists() or not model_dir.is_dir():
+            return {}
+        
+        try:
+            info = {
+                'name': model_dir.name,
+                'path': str(model_dir),
+                'clips': {},
+                'total_files': 0,
+                'total_size': 0,
+                'subdirectories': []
+            }
+            
+            # Get organized clips
+            clips = self.get_model_clips(model_dir)
+            info['clips'] = clips
+            
+            # Get all media files for statistics
+            all_media = self.get_model_media_files(model_dir, recursive=True)
+            info['total_files'] = len(all_media)
+            
+            # Calculate total size
+            total_size = 0
+            for file in all_media:
+                try:
+                    total_size += file.stat().st_size
+                except Exception:
+                    pass
+            info['total_size'] = total_size
+            
+            # List subdirectories
+            subdirs = []
+            for item in model_dir.iterdir():
+                if item.is_dir():
+                    subdirs.append(item.name)
+            info['subdirectories'] = sorted(subdirs)
+            
+            return info
+            
+        except Exception as e:
+            self.logger.error(f"Error getting model info for {model_dir}: {e}")
+            return {}
+    
+    def get_all_models_info(self, limit: int = None) -> list:
+        """
+        Get comprehensive information for all models, similar to iStripper's library view
+        
+        Args:
+            limit: Maximum number of models to process (None for all)
+        
+        Returns:
+            List of model info dictionaries, sorted by model name
+        """
+        model_dirs = self.list_model_directories()
+        
+        if limit:
+            model_dirs = model_dirs[:limit]
+        
+        models_info = []
+        for model_dir in model_dirs:
+            info = self.get_model_info(model_dir)
+            if info:
+                models_info.append(info)
+        
+        return models_info
+    
+    def search_models(self, pattern: str = None, has_clips: bool = None, 
+                     min_size: int = None, max_size: int = None) -> list:
+        """
+        Search and filter models based on criteria
+        
+        Args:
+            pattern: Search pattern for model name (case-insensitive substring match)
+            has_clips: If True, only return models with clips
+            min_size: Minimum total size in bytes
+            max_size: Maximum total size in bytes
+        
+        Returns:
+            List of model info dictionaries matching criteria
+        """
+        all_models = self.get_all_models_info()
+        filtered = []
+        
+        for model in all_models:
+            # Apply filters
+            if pattern and pattern.lower() not in model['name'].lower():
+                continue
+            
+            if has_clips is not None:
+                has_any_clips = any(model['clips'].values())
+                if has_clips != has_any_clips:
+                    continue
+            
+            if min_size is not None and model['total_size'] < min_size:
+                continue
+            
+            if max_size is not None and model['total_size'] > max_size:
+                continue
+            
+            filtered.append(model)
+        
+        return filtered
     
     def get_window_title(self) -> str:
         """
@@ -530,16 +752,16 @@ class IStripperManager:
 
 
 def main():
-    """Test iStripper detection and monitoring"""
+    """Test iStripper detection and comprehensive content loading"""
     import sys
     
-    print("iStripper Detection Test")
-    print("=" * 50)
+    print("iStripper Integration Test")
+    print("=" * 70)
     print()
     
     manager = IStripperManager()
     
-    # Test detection
+    # Test installation detection
     print("1. Detecting iStripper installation...")
     path = manager.detect_installation(use_cache=False)
     
@@ -561,22 +783,69 @@ def main():
         
         # List model directories
         print()
-        print("3. Listing model directories...")
-        model_dirs = manager.list_model_directories()
-        print(f"   Found {len(model_dirs)} model(s)")
+        print("3. Loading all models (like iStripper interface)...")
+        models = manager.list_model_directories()
+        print(f"   Found {len(models)} model(s) total")
         
-        if model_dirs:
-            print(f"   First few models:")
-            for model_dir in model_dirs[:5]:
-                print(f"     - {model_dir.name}")
+        if models:
+            print(f"   First 10 models:")
+            for i, model_dir in enumerate(models[:10], 1):
+                print(f"     {i:2d}. {model_dir.name}")
             
-            # Show media files for first model
+            # Show comprehensive info for first model
             print()
-            print(f"4. Media files in first model ({model_dirs[0].name})...")
-            media_files = manager.get_model_media_files(model_dirs[0])
-            print(f"   Found {len(media_files)} file(s)")
-            for media_file in media_files[:5]:
-                print(f"     - {media_file.name}")
+            print("4. Getting comprehensive model info (first model)...")
+            first_model = models[0]
+            info = manager.get_model_info(first_model)
+            
+            if info:
+                print(f"   Model: {info['name']}")
+                print(f"   Path: {info['path']}")
+                print(f"   Total files: {info['total_files']}")
+                print(f"   Total size: {info['total_size'] / 1024 / 1024:.1f} MB")
+                print(f"   Subdirectories: {', '.join(info['subdirectories']) if info['subdirectories'] else 'None'}")
+                
+                if info['clips']:
+                    print(f"   Content types:")
+                    for clip_type, files in info['clips'].items():
+                        print(f"     - {clip_type}: {len(files)} file(s)")
+                        # Show first few files
+                        for file in files[:3]:
+                            print(f"       • {file.name}")
+                        if len(files) > 3:
+                            print(f"       ... and {len(files) - 3} more")
+            
+            # Test getting clips organized by type
+            print()
+            print("5. Getting all clips organized by type (first 3 models)...")
+            all_clips = manager.get_all_model_clips(limit=3)
+            
+            for model_name, clips in all_clips.items():
+                print(f"   Model {model_name}:")
+                for clip_type, files in clips.items():
+                    print(f"     - {clip_type}: {len(files)} file(s)")
+            
+            # Test search functionality
+            print()
+            print("6. Testing model search...")
+            print("   Searching for models with clips...")
+            results = manager.search_models(has_clips=True)
+            print(f"   Found {len(results)} model(s) with clips")
+            
+            # Show statistics
+            print()
+            print("7. Library statistics:")
+            all_info = manager.get_all_models_info(limit=100)  # Limit to first 100 for speed
+            
+            if all_info:
+                total_files = sum(m['total_files'] for m in all_info)
+                total_size = sum(m['total_size'] for m in all_info)
+                models_with_clips = sum(1 for m in all_info if any(m['clips'].values()))
+                
+                print(f"   Models analyzed: {len(all_info)}")
+                print(f"   Models with clips: {models_with_clips}")
+                print(f"   Total media files: {total_files}")
+                print(f"   Total size: {total_size / 1024 / 1024 / 1024:.2f} GB")
     else:
         print("   ✗ Not found")
         print("   Note: This is expected if no models are installed")
@@ -584,12 +853,20 @@ def main():
     print()
     
     # Test process detection
-    print("5. Checking if iStripper is running...")
+    print("8. Checking if iStripper is running...")
     running = manager.is_process_running()
     print(f"   Status: {'Running' if running else 'Not running'}")
     
     print()
-    print("=" * 50)
+    print("=" * 70)
+    print()
+    print("Test complete! The integration now supports:")
+    print("  ✓ Loading all models (like iStripper)")
+    print("  ✓ Accessing all subdirectories recursively")
+    print("  ✓ Organizing content by type (clips/trailers/previews)")
+    print("  ✓ Comprehensive model information")
+    print("  ✓ Search and filter functionality")
+    print()
 
 
 if __name__ == '__main__':

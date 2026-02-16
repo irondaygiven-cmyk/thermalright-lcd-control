@@ -214,7 +214,39 @@ display:
 
 #### iStripper Integration
 
-Capture and display content from iStripper or any other application window:
+Capture and display content from iStripper in two ways:
+
+**Method 1: Use Installed Model Content (NEW!)**
+
+Access your actual iStripper model videos and images directly:
+
+```python
+from thermalright_lcd_control.integrations.istripper_manager import IStripperManager
+
+# Detect and access your model library
+manager = IStripperManager()
+manager.detect_installation()
+
+# List your installed models
+models = manager.list_model_directories()
+print(f"Found {len(models)} models")
+
+# Get videos from a model
+videos = manager.get_model_media_files(models[0], extensions=['.mp4'])
+# Use videos[0] as background in your config
+```
+
+**Benefits:**
+- Use actual model videos as backgrounds
+- No window capture needed
+- Better performance and quality
+- Create playlists from your collection
+
+**See:** [iStripper Content Usage Guide](docs/ISTRIPPER_CONTENT_USAGE.md) for detailed examples and API reference.
+
+**Method 2: Window Capture (Original Method)**
+
+Capture the iStripper window in real-time:
 
 **Automatic Detection:**
 
