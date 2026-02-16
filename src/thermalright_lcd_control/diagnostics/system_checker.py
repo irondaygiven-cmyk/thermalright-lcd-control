@@ -59,6 +59,7 @@ class SystemChecker:
         # Platform-specific checks
         if is_windows():
             self.check_windows_specific()
+            self.check_video_codecs()  # Windows 11 codec check
         elif is_linux():
             self.check_linux_specific()
         
@@ -301,6 +302,62 @@ class SystemChecker:
                 ))
         except Exception:
             # iStripper check is optional, don't fail
+            pass
+    
+    def check_video_codecs(self):
+        """Check video codec support (Windows only)"""
+        try:
+            from thermalright_lcd_control.utils.codec_detector import CodecDetector
+            
+            detector = CodecDetector()
+            result = detector.detect_all_codecs()
+            
+            # Check for codec packs
+            has_codecs = bool(result.get('codec_packs'))
+            has_ffmpeg = bool(result.get('ffmpeg'))
+            
+            if has_codecs or has_ffmpeg:
+                codec_names = []
+                if result.get('codec_packs'):
+                    codec_names.extend(result['codec_packs'].keys())
+                if has_ffmpeg:
+                    codec_names.append('FFmpeg')
+                
+                self.checks.append(DiagnosticCheck(
+                    "Video Codec Support",
+                    True,
+                    f"Codecs installed: {', '.join(codec_names)}"
+                ))
+            else:
+                self.checks.append(DiagnosticCheck(
+                    "Video Codec Support",
+                    False,
+                    "No video codec packs detected",
+                    "Install K-Lite Codec Pack for video playback support. Run: python -m thermalright_lcd_control.utils.codec_detector"
+                ))
+            
+            # Check OpenCV codec support
+            opencv_info = result.get('opencv_codecs', {})
+            if 'error' not in opencv_info:
+                if opencv_info.get('ffmpeg_support') or opencv_info.get('media_foundation_support'):
+                    self.checks.append(DiagnosticCheck(
+                        "OpenCV Video Support",
+                        True,
+                        f"OpenCV {opencv_info.get('opencv_version', 'Unknown')} with video backend support"
+                    ))
+                else:
+                    self.checks.append(DiagnosticCheck(
+                        "OpenCV Video Support",
+                        False,
+                        "OpenCV lacks video codec support",
+                        "Reinstall opencv-python: pip uninstall opencv-python && pip install opencv-python"
+                    ))
+        
+        except ImportError:
+            # Codec detector not available
+            pass
+        except Exception as e:
+            self.logger.debug(f"Error checking codecs: {e}")
             pass
     
     def print_report(self):
