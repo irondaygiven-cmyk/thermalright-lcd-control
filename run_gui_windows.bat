@@ -7,7 +7,18 @@ echo.
 
 setlocal enabledelayedexpansion
 
-REM Search for venv environment "IS" on all drives
+REM First, try to use the local venv created by install_windows.bat
+set "LOCAL_VENV=%~dp0venv"
+if exist "%LOCAL_VENV%\Scripts\activate.bat" (
+    echo Found local virtual environment at %LOCAL_VENV%
+    echo Activating...
+    call "%LOCAL_VENV%\Scripts\activate.bat"
+    echo Virtual environment activated.
+    echo.
+    goto :run_app
+)
+
+REM Search for venv environment "IS" on all drives (legacy support)
 set "VENV_PATH="
 for %%d in (E D C F G H I J K L M N O P Q R S T U V W X Y Z) do (
     if exist "%%d:\IS\Scripts\activate.bat" (
@@ -18,16 +29,21 @@ for %%d in (E D C F G H I J K L M N O P Q R S T U V W X Y Z) do (
 
 :found_venv
 if defined VENV_PATH (
-    echo Activating virtual environment at !VENV_PATH!...
+    echo Found virtual environment "IS" at !VENV_PATH!...
     call "!VENV_PATH!\Scripts\activate.bat"
     echo Virtual environment activated.
     echo.
+    goto :run_app
 ) else (
-    echo Warning: Virtual environment "IS" not found on any drive
+    echo Warning: No virtual environment found
+    echo Please run install_windows.bat first to create the virtual environment
+    echo.
     echo Attempting to run without venv activation...
+    echo This may fail if dependencies are not installed globally.
     echo.
 )
 
+:run_app
 endlocal
 
 REM Run the application
@@ -39,8 +55,13 @@ if %errorLevel% neq 0 (
     echo.
     echo Please make sure:
     echo  1. Python is installed and in PATH
-    echo  2. Dependencies are installed (run install_windows.bat)
-    echo  3. Virtual environment "IS" exists on one of your drives (if required)
+    echo  2. You have run install_windows.bat to set up the virtual environment
+    echo  3. Dependencies are installed in the virtual environment
     echo.
-    pause
+    echo Press any key to exit...
+    pause >nul
+    exit /b 1
 )
+
+REM If application exits normally, don't show the pause message
+exit /b 0

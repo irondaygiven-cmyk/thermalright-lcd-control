@@ -1,6 +1,7 @@
 @echo off
 REM Windows installation script for Thermalright LCD Control
 REM Automatically elevates to Administrator if needed
+REM Uses virtual environment for dependency isolation
 
 echo ==========================================
 echo Thermalright LCD Control - Windows Installer
@@ -12,8 +13,8 @@ net session >nul 2>&1
 if %errorLevel% neq 0 (
     echo Not running as Administrator. Elevating privileges...
     echo.
-    REM Re-launch as administrator using PowerShell
-    powershell -Command "Start-Process '%~f0' -Verb RunAs"
+    REM Re-launch as administrator using PowerShell with persistent window
+    powershell -Command "Start-Process cmd -ArgumentList '/K cd /d \"%CD%\" && \"%~f0\"' -Verb RunAs"
     exit /b 0
 )
 
@@ -22,11 +23,13 @@ python --version >nul 2>&1
 if %errorLevel% neq 0 (
     echo ERROR: Python is not installed or not in PATH
     echo.
-    echo Please install Python 3.8 or higher from:
+    echo Please install Python 3.10 or higher from:
     echo https://www.python.org/downloads/
     echo.
     echo Make sure to check "Add Python to PATH" during installation
-    pause
+    echo.
+    echo Press any key to exit...
+    pause >nul
     exit /b 1
 )
 
@@ -35,17 +38,54 @@ python --version
 echo.
 
 REM Check if pip is available
-pip --version >nul 2>&1
+python -m pip --version >nul 2>&1
 if %errorLevel% neq 0 (
     echo ERROR: pip is not available
     echo.
     echo Please reinstall Python and make sure pip is included
-    pause
+    echo.
+    echo Press any key to exit...
+    pause >nul
     exit /b 1
 )
 
 echo pip detected:
-pip --version
+python -m pip --version
+echo.
+
+REM Create virtual environment if it doesn't exist
+set "VENV_DIR=%~dp0venv"
+if not exist "%VENV_DIR%" (
+    echo Creating virtual environment...
+    python -m venv "%VENV_DIR%"
+    if %errorLevel% neq 0 (
+        echo ERROR: Failed to create virtual environment
+        echo.
+        echo The Python venv module appears to be missing or incomplete.
+        echo Please reinstall Python with all standard library modules included.
+        echo.
+        echo Press any key to exit...
+        pause >nul
+        exit /b 1
+    )
+    echo Virtual environment created successfully.
+    echo.
+) else (
+    echo Virtual environment already exists.
+    echo.
+)
+
+REM Activate virtual environment
+echo Activating virtual environment...
+call "%VENV_DIR%\Scripts\activate.bat"
+if %errorLevel% neq 0 (
+    echo ERROR: Failed to activate virtual environment
+    echo.
+    echo Press any key to exit...
+    pause >nul
+    exit /b 1
+)
+echo Virtual environment activated.
 echo.
 
 REM Detect installed applications
@@ -162,16 +202,19 @@ if defined VLC_PATH (
 echo.
 
 REM Install dependencies
-echo Installing required Python packages...
+echo Installing required Python packages into virtual environment...
 echo This may take a few minutes...
 echo.
 
-pip install PySide6>=6.10.0 hid>=1.0.8 psutil>=7.1.3 opencv-python>=4.12.0.88 pyusb>=1.3.1 pillow>=12.0.0 pyyaml>=6.0.2
+python -m pip install --upgrade pip
+python -m pip install PySide6>=6.10.0 hid>=1.0.8 psutil>=7.1.3 opencv-python>=4.12.0.88 pyusb>=1.3.1 pillow>=12.0.0 pyyaml>=6.0.2
 
 if %errorLevel% neq 0 (
     echo.
     echo ERROR: Failed to install dependencies
-    pause
+    echo.
+    echo Press any key to exit...
+    pause >nul
     exit /b 1
 )
 
@@ -218,15 +261,19 @@ if defined VLC_PATH (
 )
 
 echo To run the application:
-echo   python -m thermalright_lcd_control.main_gui
+echo   1. Activate the virtual environment:
+echo      %VENV_DIR%\Scripts\activate.bat
+echo   2. Run the application:
+echo      python -m thermalright_lcd_control.main_gui
 echo.
-echo Or create a desktop shortcut using:
-echo   Target: python -m thermalright_lcd_control.main_gui
-echo   Start in: %CD%
+echo Or simply double-click run_gui_windows.bat
 echo.
 echo Note: Video playback is enabled without audio by default
 echo Supported video formats: MP4, AVI, MKV, MOV, WEBM, FLV, WMV, M4V
 echo.
 
 endlocal
-pause
+echo.
+echo Installation complete! Window will remain open for review.
+echo Press any key to exit...
+pause >nul
