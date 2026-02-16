@@ -38,6 +38,7 @@ class IStripperManager:
         self.logger = get_service_logger()
         self.installation_path: Optional[Path] = None
         self.executable_name: Optional[str] = None
+        self.content_directory: Optional[Path] = None  # Directory containing model shows/data
         self.is_running = False
         self.monitor_thread: Optional[threading.Thread] = None
         self.should_monitor = False
@@ -277,6 +278,225 @@ class IStripperManager:
                 self.logger.error(f"Error in monitoring loop: {e}")
                 time.sleep(5)
     
+    def detect_content_directory(self, installation_path: Optional[Path] = None) -> Optional[Path]:
+        """
+        Detect iStripper content directory containing model shows/data
+        
+        Args:
+            installation_path: Path to iStripper installation (uses self.installation_path if not provided)
+        
+        Returns:
+            Path to content directory or None if not found
+        """
+        # Use provided path or cached installation path
+        if installation_path is None:
+            installation_path = self.installation_path
+        
+        if not installation_path or not installation_path.exists():
+            self.logger.warning("No valid iStripper installation path provided")
+            return None
+        
+        # Get the installation directory (where the exe is located)
+        install_dir = installation_path.parent
+        
+        # Common content directory names
+        content_dir_names = [
+            'DATA',      # Standard iStripper data folder
+            'data',      # Lowercase variant
+            'Models',    # Alternative folder name
+            'models',    # Lowercase variant
+            'Shows',     # Another possible name
+            'shows',     # Lowercase variant
+        ]
+        
+        # Check in installation directory
+        for dir_name in content_dir_names:
+            content_path = install_dir / dir_name
+            if content_path.exists() and content_path.is_dir():
+                # Verify it contains model content (check for subdirectories)
+                try:
+                    # Model folders typically have names like "0001", "0002", etc.
+                    subdirs = [d for d in content_path.iterdir() if d.is_dir()]
+                    if subdirs:
+                        self.content_directory = content_path
+                        self.logger.info(f"iStripper content directory found: {content_path}")
+                        return content_path
+                except Exception as e:
+                    self.logger.debug(f"Error checking {content_path}: {e}")
+        
+        # Try Registry for custom data path (Windows only)
+        if is_windows():
+            registry_path = self._detect_content_from_registry()
+            if registry_path:
+                self.content_directory = registry_path
+                return registry_path
+        
+        # Check parent directory (sometimes DATA is at same level as installation folder)
+        parent_dir = install_dir.parent
+        for dir_name in content_dir_names:
+            content_path = parent_dir / dir_name
+            if content_path.exists() and content_path.is_dir():
+                try:
+                    subdirs = [d for d in content_path.iterdir() if d.is_dir()]
+                    if subdirs:
+                        self.content_directory = content_path
+                        self.logger.info(f"iStripper content directory found: {content_path}")
+                        return content_path
+                except Exception as e:
+                    self.logger.debug(f"Error checking {content_path}: {e}")
+        
+        self.logger.warning("iStripper content directory not found")
+        return None
+    
+    def _detect_content_from_registry(self) -> Optional[Path]:
+        """Try to detect content directory from Windows Registry"""
+        if not is_windows():
+            return None
+        
+        try:
+            import winreg
+            
+            registry_paths = [
+                (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Totem Entertainment\iStripper"),
+                (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Totem Entertainment\iStripper"),
+                (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Totem Entertainment\iStripper"),
+            ]
+            
+            for hkey, subkey in registry_paths:
+                try:
+                    with winreg.OpenKey(hkey, subkey) as key:
+                        # Try to get data path
+                        try:
+                            data_path = winreg.QueryValueEx(key, "DataPath")[0]
+                            data_dir = Path(data_path)
+                            if data_dir.exists() and data_dir.is_dir():
+                                self.logger.info(f"Content directory from Registry: {data_dir}")
+                                return data_dir
+                        except FileNotFoundError:
+                            pass
+                        
+                        # Try to derive from install path
+                        try:
+                            install_path = winreg.QueryValueEx(key, "InstallPath")[0]
+                            for subdir in ['DATA', 'data', 'Models', 'models']:
+                                data_dir = Path(install_path) / subdir
+                                if data_dir.exists() and data_dir.is_dir():
+                                    return data_dir
+                        except FileNotFoundError:
+                            pass
+                            
+                except FileNotFoundError:
+                    continue
+                except Exception as e:
+                    self.logger.debug(f"Registry check error: {e}")
+                    continue
+                    
+        except ImportError:
+            pass
+        except Exception as e:
+            self.logger.debug(f"Registry detection error: {e}")
+        
+        return None
+    
+    def get_content_directory(self, auto_detect: bool = True) -> Optional[Path]:
+        """
+        Get the iStripper content directory
+        
+        Args:
+            auto_detect: If True, attempt detection if not already cached
+        
+        Returns:
+            Path to content directory or None
+        """
+        if self.content_directory and self.content_directory.exists():
+            return self.content_directory
+        
+        if auto_detect:
+            return self.detect_content_directory()
+        
+        return None
+    
+    def list_model_directories(self) -> list:
+        """
+        List all model directories in the content folder
+        
+        Returns:
+            List of Path objects for each model directory
+        """
+        content_dir = self.get_content_directory()
+        if not content_dir:
+            return []
+        
+        try:
+            model_dirs = []
+            for item in content_dir.iterdir():
+                if item.is_dir():
+                    model_dirs.append(item)
+            
+            # Sort by name (usually numeric IDs like "0001", "0002")
+            model_dirs.sort(key=lambda x: x.name)
+            return model_dirs
+            
+        except Exception as e:
+            self.logger.error(f"Error listing model directories: {e}")
+            return []
+    
+    def get_model_media_files(self, model_dir: Path, extensions: list = None) -> list:
+        """
+        Get media files from a model directory
+        
+        Args:
+            model_dir: Path to model directory
+            extensions: List of file extensions to include (e.g., ['.mp4', '.jpg'])
+                       If None, includes common video and image formats
+        
+        Returns:
+            List of Path objects for media files
+        """
+        if extensions is None:
+            extensions = ['.mp4', '.avi', '.mkv', '.mov', '.jpg', '.jpeg', '.png', '.gif']
+        
+        if not model_dir.exists() or not model_dir.is_dir():
+            return []
+        
+        try:
+            media_files = []
+            for item in model_dir.rglob('*'):
+                if item.is_file() and item.suffix.lower() in extensions:
+                    media_files.append(item)
+            
+            # Sort by name
+            media_files.sort(key=lambda x: x.name)
+            return media_files
+            
+        except Exception as e:
+            self.logger.error(f"Error listing media files in {model_dir}: {e}")
+            return []
+    
+    def get_all_model_media(self, extensions: list = None, limit: int = None) -> dict:
+        """
+        Get all model media files organized by model
+        
+        Args:
+            extensions: List of file extensions to include
+            limit: Maximum number of models to process (None for all)
+        
+        Returns:
+            Dictionary mapping model directory names to lists of media file paths
+        """
+        model_dirs = self.list_model_directories()
+        
+        if limit:
+            model_dirs = model_dirs[:limit]
+        
+        result = {}
+        for model_dir in model_dirs:
+            media_files = self.get_model_media_files(model_dir, extensions)
+            if media_files:
+                result[model_dir.name] = media_files
+        
+        return result
+    
     def get_window_title(self) -> str:
         """
         Get the window title for window capture
@@ -320,24 +540,60 @@ def main():
     manager = IStripperManager()
     
     # Test detection
-    print("Detecting iStripper...")
+    print("1. Detecting iStripper installation...")
     path = manager.detect_installation(use_cache=False)
     
     if path:
-        print(f"✓ Found: {path}")
-        print(f"  Executable: {manager.executable_name}")
+        print(f"   ✓ Found: {path}")
+        print(f"   Executable: {manager.executable_name}")
     else:
-        print("✗ Not found")
+        print("   ✗ Not found")
+        sys.exit(1)
+    
+    print()
+    
+    # Test content directory detection
+    print("2. Detecting content directory...")
+    content_dir = manager.detect_content_directory()
+    
+    if content_dir:
+        print(f"   ✓ Found: {content_dir}")
+        
+        # List model directories
+        print()
+        print("3. Listing model directories...")
+        model_dirs = manager.list_model_directories()
+        print(f"   Found {len(model_dirs)} model(s)")
+        
+        if model_dirs:
+            print(f"   First few models:")
+            for model_dir in model_dirs[:5]:
+                print(f"     - {model_dir.name}")
+            
+            # Show media files for first model
+            print()
+            print(f"4. Media files in first model ({model_dirs[0].name})...")
+            media_files = manager.get_model_media_files(model_dirs[0])
+            print(f"   Found {len(media_files)} file(s)")
+            for media_file in media_files[:5]:
+                print(f"     - {media_file.name}")
+    else:
+        print("   ✗ Not found")
+        print("   Note: This is expected if no models are installed")
     
     print()
     
     # Test process detection
-    print("Checking if iStripper is running...")
+    print("5. Checking if iStripper is running...")
     running = manager.is_process_running()
-    print(f"  Status: {'Running' if running else 'Not running'}")
+    print(f"   Status: {'Running' if running else 'Not running'}")
     
     print()
     print("=" * 50)
+
+
+if __name__ == '__main__':
+    main()
 
 
 if __name__ == '__main__':

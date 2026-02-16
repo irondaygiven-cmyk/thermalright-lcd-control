@@ -20,6 +20,7 @@ class DetectedAppsConfig:
     def __init__(self):
         """Initialize and load detected applications configuration"""
         self.istripper_path: Optional[str] = None
+        self.istripper_content_dir: Optional[str] = None  # Content/models directory
         self.vlc_path: Optional[str] = None
         self.detection_date: Optional[str] = None
         
@@ -50,12 +51,16 @@ class DetectedAppsConfig:
                 config = json.load(f)
             
             self.istripper_path = config.get('istripper_path')
+            self.istripper_content_dir = config.get('istripper_content_dir')
             self.vlc_path = config.get('vlc_path')
             self.detection_date = config.get('detection_date')
             
             # Validate paths still exist
             if self.istripper_path and not Path(self.istripper_path).exists():
                 self.istripper_path = None
+            
+            if self.istripper_content_dir and not Path(self.istripper_content_dir).exists():
+                self.istripper_content_dir = None
             
             if self.vlc_path and not Path(self.vlc_path).exists():
                 self.vlc_path = None
@@ -76,6 +81,10 @@ class DetectedAppsConfig:
         """Get iStripper executable path"""
         return self.istripper_path if self.has_istripper() else None
     
+    def get_istripper_content_dir(self) -> Optional[str]:
+        """Get iStripper content/models directory path"""
+        return self.istripper_content_dir if self.istripper_content_dir and Path(self.istripper_content_dir).exists() else None
+    
     def get_vlc_path(self) -> Optional[str]:
         """Get VLC executable path"""
         return self.vlc_path if self.has_vlc() else None
@@ -89,6 +98,7 @@ class DetectedAppsConfig:
         """
         return {
             'istripper': self.get_istripper_path(),
+            'istripper_content': self.get_istripper_content_dir(),
             'vlc': self.get_vlc_path()
         }
 
