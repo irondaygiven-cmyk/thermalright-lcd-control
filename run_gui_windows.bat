@@ -18,15 +18,18 @@ if exist "%LOCAL_VENV%\Scripts\python.exe" (
     goto :run_app
 )
 
-REM If not found, search for venv in subfolders
+REM If not found, search for venv in subfolders (excluding already checked 'venv')
 echo Local venv not found, searching subfolders...
 for /d %%d in ("%~dp0*") do (
-    if exist "%%d\Scripts\python.exe" (
-        echo Found virtual environment in subfolder: %%d
-        set "PYTHON_EXE=%%d\Scripts\python.exe"
-        echo Using Python from: !PYTHON_EXE!
-        echo.
-        goto :run_app
+    REM Skip the already-checked venv directory
+    if /i not "%%~nxd"=="venv" (
+        if exist "%%d\Scripts\python.exe" (
+            echo Found virtual environment in subfolder: %%d
+            set "PYTHON_EXE=%%d\Scripts\python.exe"
+            echo Using Python from: !PYTHON_EXE!
+            echo.
+            goto :run_app
+        )
     )
 )
 
@@ -50,10 +53,25 @@ if defined VENV_PATH (
     echo Warning: No virtual environment found
     echo Please run install_windows.bat first to create the virtual environment
     echo.
-    echo Attempting to run with system Python...
-    echo This may fail if dependencies are not installed globally.
-    echo.
-    set "PYTHON_EXE=python"
+    
+    REM Check if Python is available on the system
+    where python >nul 2>&1
+    if %errorLevel% equ 0 (
+        echo Attempting to run with system Python...
+        echo This may fail if dependencies are not installed globally.
+        echo.
+        set "PYTHON_EXE=python"
+    ) else (
+        echo ERROR: Python is not installed or not in PATH
+        echo.
+        echo Please either:
+        echo  1. Run install_windows.bat to create a virtual environment, or
+        echo  2. Install Python and add it to PATH
+        echo.
+        echo Press any key to exit...
+        pause >nul
+        exit /b 1
+    )
 )
 
 :run_app
