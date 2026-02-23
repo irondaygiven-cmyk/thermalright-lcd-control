@@ -80,7 +80,8 @@ def main(config_file=None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Thermalright LCD Control GUI")
     parser.add_argument('--config',
-                        required=True,
+                        required=False,
+                        default=None,
                         help="Path to GUI configuration file (gui_config.yaml)")
 
     args = parser.parse_args()

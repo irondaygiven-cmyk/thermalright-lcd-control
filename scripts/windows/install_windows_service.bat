@@ -15,6 +15,9 @@ if %errorLevel% == 0 (
     
     REM Run the PowerShell script
     powershell -ExecutionPolicy Bypass -File "%~dp0install_windows_service.ps1"
+    echo.
+    echo Service installer completed. Press any key to exit...
+    pause >nul
 ) else (
     echo This script requires Administrator privileges.
     echo.

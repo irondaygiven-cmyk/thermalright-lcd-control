@@ -7,7 +7,6 @@ Searches common installation directories and Windows registry.
 """
 
 import os
-import winreg
 from pathlib import Path
 from typing import Optional, List, Dict
 from thermalright_lcd_control.common.platform_utils import is_windows
@@ -155,6 +154,7 @@ class AppDetector:
         Returns:
             Path to executable if found in registry, None otherwise
         """
+        import winreg
         # Registry keys to check
         registry_keys = [
             # Current user installations
@@ -285,6 +285,17 @@ def detect_applications(search_all_drives: bool = False) -> Dict[str, Optional[s
     
     # Convert Path objects to strings
     return {app: str(path) if path else None for app, path in results.items()}
+
+
+def find_istripper_path() -> Optional[str]:
+    """
+    Find the iStripper executable path.
+
+    Returns:
+        Path to iStripper executable as string, or None if not found
+    """
+    apps = detect_applications()
+    return apps.get('istripper')
 
 
 def detect_istripper_content_directory(istripper_path: Optional[str] = None) -> Optional[str]:

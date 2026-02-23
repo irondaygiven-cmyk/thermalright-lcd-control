@@ -9,7 +9,6 @@ and provides guidance for codec installation.
 """
 
 import subprocess
-import winreg
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -29,18 +28,6 @@ class CodecDetector:
     - DirectShow filters
     """
     
-    # Codec pack registry keys
-    CODEC_PACK_KEYS = {
-        'K-Lite Codec Pack': [
-            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\KLCodecPack"),
-            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\KLCodecPack"),
-        ],
-        'LAV Filters': [
-            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\LAV"),
-            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\LAV"),
-        ],
-    }
-    
     # Common codec file locations
     CODEC_LOCATIONS = {
         'K-Lite': [
@@ -59,6 +46,19 @@ class CodecDetector:
         
         if not is_windows():
             raise RuntimeError("Codec detector only works on Windows")
+        
+        import winreg
+        self._winreg = winreg
+        self.CODEC_PACK_KEYS = {
+            'K-Lite Codec Pack': [
+                (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\KLCodecPack"),
+                (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\KLCodecPack"),
+            ],
+            'LAV Filters': [
+                (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\LAV"),
+                (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\LAV"),
+            ],
+        }
     
     def detect_all_codecs(self) -> Dict[str, any]:
         """
@@ -117,6 +117,7 @@ class CodecDetector:
     
     def _check_registry_keys(self, name: str, keys: List[Tuple]) -> Optional[Dict]:
         """Check registry keys for codec pack"""
+        winreg = self._winreg
         try:
             for hkey, subkey in keys:
                 try:

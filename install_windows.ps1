@@ -38,7 +38,7 @@ try {
 
 # Check if pip is available
 try {
-    $pipVersion = pip --version 2>&1
+    $pipVersion = python -m pip --version 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw "pip not found"
     }
@@ -51,6 +51,32 @@ try {
     Read-Host "Press Enter to exit"
     exit 1
 }
+
+# Create virtual environment if it doesn't exist
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$venvDir = Join-Path $scriptDir "venv"
+
+if (-not (Test-Path $venvDir)) {
+    Write-Host "Creating virtual environment..." -ForegroundColor Cyan
+    python -m venv $venvDir
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "ERROR: Failed to create virtual environment" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "The Python venv module appears to be missing or incomplete." -ForegroundColor Yellow
+        Write-Host "Please reinstall Python with all standard library modules included." -ForegroundColor Yellow
+        Read-Host "Press Enter to exit"
+        exit 1
+    }
+    Write-Host "Virtual environment created successfully." -ForegroundColor Green
+    Write-Host ""
+} else {
+    Write-Host "Virtual environment already exists." -ForegroundColor Green
+    Write-Host ""
+}
+
+# Set pip path to use the venv
+$venvPip = Join-Path $venvDir "Scripts\pip.exe"
+$venvPython = Join-Path $venvDir "Scripts\python.exe"
 
 # Function to search for an application in Program Files
 function Find-Application {
@@ -176,33 +202,31 @@ if ($vlcPath) {
 
 Write-Host ""
 
-# Install dependencies
-Write-Host "Installing required Python packages..." -ForegroundColor Cyan
+# Install dependencies using the virtual environment
+Write-Host "Installing thermalright-lcd-control package and dependencies..." -ForegroundColor Cyan
 Write-Host "This may take a few minutes..." -ForegroundColor Yellow
 Write-Host ""
 
-$packages = @(
-    "PySide6>=6.10.0",
-    "hid>=1.0.8",
-    "psutil>=7.1.3",
-    "opencv-python>=4.12.0.88",
-    "pyusb>=1.3.1",
-    "pillow>=12.0.0",
-    "pyyaml>=6.0.2"
-)
+# Upgrade pip in venv first
+& $venvPython -m pip install --upgrade pip
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Warning: Failed to upgrade pip, continuing with current version..." -ForegroundColor Yellow
+}
 
-foreach ($package in $packages) {
-    Write-Host "Installing $package..." -ForegroundColor Cyan
-    pip install $package
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host ""
-        Write-Host "ERROR: Failed to install $package" -ForegroundColor Red
-        Read-Host "Press Enter to exit"
-        exit 1
-    }
+# Install the package with Windows-specific extras from pyproject.toml
+Push-Location $scriptDir
+& $venvPip install -e ".[windows]"
+$installResult = $LASTEXITCODE
+Pop-Location
+if ($installResult -ne 0) {
+    Write-Host ""
+    Write-Host "ERROR: Failed to install package dependencies" -ForegroundColor Red
+    Read-Host "Press Enter to exit"
+    exit 1
 }
 
 Write-Host ""
+Write-Host "[OK] Package installed successfully" -ForegroundColor Green
 
 # Create configuration file with detected applications
 $configDir = Join-Path $env:LOCALAPPDATA "thermalright-lcd-control"
@@ -243,11 +267,11 @@ if ($iStripperPath -or $vlcPath) {
 }
 
 Write-Host "To run the application:" -ForegroundColor Cyan
-Write-Host "  python -m thermalright_lcd_control.main_gui" -ForegroundColor Yellow
+Write-Host "  run_gui_windows.bat (double-click to launch)" -ForegroundColor Yellow
 Write-Host ""
-Write-Host "Or create a desktop shortcut with:" -ForegroundColor Cyan
-Write-Host "  Target: python -m thermalright_lcd_control.main_gui" -ForegroundColor Yellow
-Write-Host "  Start in: $PWD" -ForegroundColor Yellow
+Write-Host "Or run manually with the virtual environment:" -ForegroundColor Cyan
+Write-Host "  1. Activate: $venvDir\Scripts\activate.bat" -ForegroundColor Yellow
+Write-Host "  2. Run:      python -m thermalright_lcd_control.main_gui" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "Note: Video playback is enabled without audio by default" -ForegroundColor Green
 Write-Host "Supported video formats: MP4, AVI, MKV, MOV, WEBM, FLV, WMV, M4V" -ForegroundColor Green
@@ -263,9 +287,9 @@ if ($response -eq "Y" -or $response -eq "y") {
     
     $WshShell = New-Object -ComObject WScript.Shell
     $Shortcut = $WshShell.CreateShortcut($shortcutPath)
-    $Shortcut.TargetPath = "python"
+    $Shortcut.TargetPath = $venvPython
     $Shortcut.Arguments = "-m thermalright_lcd_control.main_gui"
-    $Shortcut.WorkingDirectory = $PWD
+    $Shortcut.WorkingDirectory = $scriptDir
     $Shortcut.Description = "Thermalright LCD Control"
     $Shortcut.Save()
     
