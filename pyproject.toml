@@ -36,6 +36,11 @@ linux = [
     "python-xlib>=0.33",  # X11 window capture
 ]
 
+# Development/testing dependencies
+dev = [
+    "pytest>=7.0",
+]
+
 [project.scripts]
 thermalright-lcd-control-gui = "thermalright_lcd_control.main_gui:main"
 thermalright-lcd-control-service = "thermalright_lcd_control.service:main"
@@ -57,3 +62,6 @@ include = [
     "/LICENSE",
     "/pyproject.toml",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
