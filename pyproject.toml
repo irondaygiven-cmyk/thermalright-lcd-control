@@ -28,6 +28,7 @@ windows = [
     "pygetwindow>=0.0.9",  # Window management
     "pywin32>=306",  # Windows services support
     "wmi>=1.5.1",  # Windows Management Instrumentation for GPU metrics
+    "libusb-package>=1.0.26",  # Bundles libusb-1.0.dll so pyusb works without manual driver setup
 ]
 
 # Linux-specific dependencies for window capture

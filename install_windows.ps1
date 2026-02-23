@@ -228,6 +228,86 @@ if ($installResult -ne 0) {
 Write-Host ""
 Write-Host "[OK] Package installed successfully" -ForegroundColor Green
 
+# -------------------------------------------------------
+# Install hidapi.dll (native HID library for Windows)
+# -------------------------------------------------------
+function Install-HidapiDll {
+    param([string]$TargetVenvDir)
+
+    $dllDest = Join-Path $TargetVenvDir "Scripts\hidapi.dll"
+    if (Test-Path $dllDest) {
+        Write-Host "[OK] hidapi.dll already present in $TargetVenvDir\Scripts\" -ForegroundColor Green
+        return
+    }
+
+    Write-Host "Downloading hidapi native library for Windows HID device support..." -ForegroundColor Cyan
+    $zipPath    = Join-Path $env:TEMP "hidapi-win.zip"
+    $extractDir = Join-Path $env:TEMP "hidapi-win"
+
+    try {
+        Invoke-WebRequest -Uri "https://github.com/libusb/hidapi/releases/download/hidapi-0.14.0/hidapi-win.zip" `
+            -OutFile $zipPath -UseBasicParsing -TimeoutSec 30
+        Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
+
+        # The archive may place the DLL at x64\hidapi.dll or hidapi-win\x64\hidapi.dll
+        $dllSrc = Join-Path $extractDir "x64\hidapi.dll"
+        if (-not (Test-Path $dllSrc)) {
+            $dllSrc = Get-ChildItem -Path $extractDir -Recurse -Filter "hidapi.dll" |
+                      Where-Object { $_.DirectoryName -match "x64" } |
+                      Select-Object -First 1 -ExpandProperty FullName
+        }
+
+        if ($dllSrc -and (Test-Path $dllSrc)) {
+            Copy-Item $dllSrc -Destination $dllDest -Force
+            Write-Host "[OK] hidapi.dll installed to $TargetVenvDir\Scripts\" -ForegroundColor Green
+        } else {
+            Write-Host "[!!] hidapi.dll not found in downloaded archive." -ForegroundColor Yellow
+            Write-Host "     Please install manually: https://github.com/libusb/hidapi/releases" -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Host "[!!] Warning: Could not download hidapi.dll automatically: $_" -ForegroundColor Yellow
+        Write-Host "     HID devices (0x0418:0x5304, 0x0416:0x5302) require hidapi.dll" -ForegroundColor Yellow
+        Write-Host "     Place hidapi.dll in: $TargetVenvDir\Scripts\" -ForegroundColor Yellow
+        Write-Host "     Manual download: https://github.com/libusb/hidapi/releases" -ForegroundColor Yellow
+    } finally {
+        if (Test-Path $zipPath)    { Remove-Item $zipPath    -Force -ErrorAction SilentlyContinue }
+        if (Test-Path $extractDir) { Remove-Item $extractDir -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+}
+
+Install-HidapiDll -TargetVenvDir $venvDir
+
+# -------------------------------------------------------
+# Detect and install into IS venv (E:\IS) if present
+# -------------------------------------------------------
+$isVenvPath = $null
+foreach ($drive in @('E','D','C','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z')) {
+    $candidate = "${drive}:\IS"
+    if (Test-Path (Join-Path $candidate "Scripts\python.exe")) {
+        $isVenvPath = $candidate
+        break
+    }
+}
+
+if ($isVenvPath) {
+    Write-Host ""
+    Write-Host "Found IS virtual environment at $isVenvPath" -ForegroundColor Cyan
+    Write-Host "Installing thermalright-lcd-control into IS venv..." -ForegroundColor Cyan
+
+    $isVenvPip = Join-Path $isVenvPath "Scripts\pip.exe"
+    Push-Location $scriptDir
+    & $isVenvPip install --upgrade pip 2>&1 | Out-Null
+    & $isVenvPip install -e ".[windows]"
+    Pop-Location
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "[OK] Package installed into IS venv" -ForegroundColor Green
+    } else {
+        Write-Host "[!!] Warning: Could not install package into IS venv" -ForegroundColor Yellow
+    }
+
+    Install-HidapiDll -TargetVenvDir $isVenvPath
+}
+
 # Create configuration file with detected applications
 $configDir = Join-Path $env:LOCALAPPDATA "thermalright-lcd-control"
 $configFile = Join-Path $configDir "detected_apps.json"

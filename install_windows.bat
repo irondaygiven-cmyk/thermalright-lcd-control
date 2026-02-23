@@ -114,7 +114,96 @@ echo.
 echo [OK] Package installed successfully
 echo.
 
-REM Detect installed applications
+REM -------------------------------------------------------
+REM Install hidapi native library (required by the hid package)
+REM -------------------------------------------------------
+call :install_hidapi "%VENV_DIR%"
+
+REM -------------------------------------------------------
+REM Also install into the IS venv (E:\IS) if it exists
+REM -------------------------------------------------------
+call :install_to_is_venv
+
+goto :detect_apps
+
+:install_hidapi
+setlocal enabledelayedexpansion
+set "TARGET_VENV=%~1"
+set "HIDAPI_DLL=%TARGET_VENV%\Scripts\hidapi.dll"
+
+if exist "%HIDAPI_DLL%" (
+    echo [OK] hidapi.dll already present in %TARGET_VENV%\Scripts\
+    endlocal
+    exit /b 0
+)
+
+echo Downloading hidapi native library for Windows HID device support...
+set "HIDAPI_ZIP=%TEMP%\hidapi-win.zip"
+set "HIDAPI_EXTRACT=%TEMP%\hidapi-win"
+
+powershell -NoProfile -Command ^
+    "try { Invoke-WebRequest -Uri 'https://github.com/libusb/hidapi/releases/download/hidapi-0.14.0/hidapi-win.zip' -OutFile '%HIDAPI_ZIP%' -UseBasicParsing -TimeoutSec 30; exit 0 } catch { exit 1 }"
+
+if %errorLevel% neq 0 (
+    echo [!!] Warning: Could not download hidapi.dll automatically.
+    echo     HID devices ^(0x0418:0x5304, 0x0416:0x5302^) will not work until hidapi.dll
+    echo     is placed in: %TARGET_VENV%\Scripts\
+    echo     Manual download: https://github.com/libusb/hidapi/releases
+    endlocal
+    exit /b 1
+)
+
+powershell -NoProfile -Command ^
+    "Expand-Archive -Path '%HIDAPI_ZIP%' -DestinationPath '%HIDAPI_EXTRACT%' -Force"
+
+set "DLL_SRC=%HIDAPI_EXTRACT%\x64\hidapi.dll"
+if not exist "%DLL_SRC%" set "DLL_SRC=%HIDAPI_EXTRACT%\hidapi-win\x64\hidapi.dll"
+
+if exist "%DLL_SRC%" (
+    copy /Y "%DLL_SRC%" "%HIDAPI_DLL%" >nul
+    echo [OK] hidapi.dll installed to %TARGET_VENV%\Scripts\
+) else (
+    echo [!!] Warning: hidapi.dll not found in downloaded archive.
+    echo     Please install it manually: https://github.com/libusb/hidapi/releases
+)
+
+if exist "%HIDAPI_ZIP%" del /Q "%HIDAPI_ZIP%"
+if exist "%HIDAPI_EXTRACT%" rmdir /S /Q "%HIDAPI_EXTRACT%"
+
+endlocal
+exit /b 0
+
+:install_to_is_venv
+setlocal enabledelayedexpansion
+set "IS_VENV="
+for %%d in (E D C F G H I J K L M N O P Q R S T U V W X Y Z) do (
+    if exist "%%d:\IS\Scripts\python.exe" (
+        set "IS_VENV=%%d:\IS"
+        goto :found_is
+    )
+)
+endlocal
+exit /b 0
+
+:found_is
+echo.
+echo Found IS virtual environment at !IS_VENV!
+echo Installing thermalright-lcd-control into IS venv...
+
+"!IS_VENV!\Scripts\pip.exe" install --upgrade pip >nul 2>&1
+"!IS_VENV!\Scripts\pip.exe" install -e ".[windows]"
+if %errorLevel% equ 0 (
+    echo [OK] Package installed into IS venv
+) else (
+    echo [!!] Warning: Could not install package into IS venv
+)
+
+call :install_hidapi "!IS_VENV!"
+
+endlocal
+exit /b 0
+
+:detect_apps
 echo Searching for installed applications...
 echo.
 

@@ -1,14 +1,13 @@
 import struct
 from abc import ABC
 
-import hid
-
 from thermalright_lcd_control.device_controller.display.display_device import DisplayDevice
 
 
 class HidDevice(DisplayDevice, ABC):
     mode = "HID"
     def __init__(self, vid, pid, chunk_size, width, height, config_dir: str, *args, **kwargs):
+        import hid  # lazy import: defer native-library loading until a device is actually opened
         super().__init__(vid, pid, chunk_size, width, height, config_dir, *args, **kwargs)
         self.dev = hid.Device(vid, pid)
         self.vid = vid
