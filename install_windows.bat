@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 REM Windows installation script for Thermalright LCD Control
 REM Automatically elevates to Administrator if needed
 REM Uses virtual environment for dependency isolation
