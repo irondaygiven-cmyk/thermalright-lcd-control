@@ -174,12 +174,20 @@ class DisplayDevice87AD70DB320(UsbDevice):
             img = img.resize((self.width, self.height), Image.LANCZOS)
         rgb = img.convert("RGB")
         arr = np.array(rgb, dtype=np.uint8)
-        r = arr[..., 0].astype(np.uint16)
-        g = arr[..., 1].astype(np.uint16)
-        b = arr[..., 2].astype(np.uint16)
-        v = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)
-        hi = (v >> 8).astype(np.uint8)
-        lo = (v & 0xFF).astype(np.uint8)
+        # Use np.errstate to isolate this block from the process-wide NumPy error
+        # state.  Libraries such as opencv, diffusers, or sklearn may call
+        # np.seterr() globally (process-wide, affects all threads).  Without this
+        # guard a foreign np.seterr(over='raise') would crash the encoding even
+        # though the uint8→uint16 widening here never actually overflows.
+        # Note: np.random seeding (np.random.seed / np.random.default_rng) is a
+        # separate concern; this code does not use NumPy's RNG at all.
+        with np.errstate(over='ignore', invalid='ignore'):
+            r = arr[..., 0].astype(np.uint16)
+            g = arr[..., 1].astype(np.uint16)
+            b = arr[..., 2].astype(np.uint16)
+            v = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)
+            hi = (v >> 8).astype(np.uint8)
+            lo = (v & 0xFF).astype(np.uint8)
         out = np.empty((self.height, self.width * 2), dtype=np.uint8)
         out[..., 0::2] = hi  # BE
         out[..., 1::2] = lo

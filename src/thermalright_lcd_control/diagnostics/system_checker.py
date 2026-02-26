@@ -94,9 +94,9 @@ class SystemChecker:
     
     def check_dependencies(self):
         """Check if all required dependencies are installed"""
+        # List of (import_name, pip_package_name) tuples
         required_packages = [
             ('PySide6', 'PySide6'),
-            ('hid', 'hid'),
             ('psutil', 'psutil'),
             ('cv2', 'opencv-python'),
             ('usb', 'pyusb'),
@@ -104,12 +104,24 @@ class SystemChecker:
             ('yaml', 'pyyaml'),
         ]
         
-        missing = []
+        # Each entry is (display_label, pip_name)
+        missing: list[tuple[str, str]] = []
         for import_name, package_name in required_packages:
             try:
                 __import__(import_name)
             except ImportError:
-                missing.append(package_name)
+                missing.append((package_name, package_name))
+        
+        # Check the hid package separately: it may be installed but fail to load
+        # the native hidapi library (raises ImportError with a descriptive message).
+        try:
+            import hid  # noqa: F401
+        except ImportError as e:
+            err = str(e)
+            if any(lib in err for lib in ('hidapi', 'dll', 'library', '.so', 'dylib')):
+                missing.append(('hid (native hidapi library missing – see fix hint below)', 'hid'))
+            else:
+                missing.append(('hid', 'hid'))
         
         if not missing:
             self.checks.append(DiagnosticCheck(
@@ -118,11 +130,13 @@ class SystemChecker:
                 "All required packages are installed"
             ))
         else:
+            display_names = ', '.join(label for label, _ in missing)
+            pip_names = ' '.join(pip for _, pip in missing)
             self.checks.append(DiagnosticCheck(
                 "Required Dependencies",
                 False,
-                f"Missing packages: {', '.join(missing)}",
-                f"Install with: pip install {' '.join(missing)}"
+                f"Missing packages: {display_names}",
+                f"Install with: pip install {pip_names}"
             ))
     
     def check_windows_specific(self):
@@ -162,6 +176,53 @@ class SystemChecker:
                 ))
         except Exception:
             pass
+
+        # Check hidapi native library (required by the hid Python package)
+        self._check_hidapi_native_library()
+
+        # Check libusb native library (required by pyusb for USB bulk devices)
+        self._check_libusb_native_library()
+
+    def _check_hidapi_native_library(self):
+        """Check that the hidapi native DLL can be loaded (Windows only)"""
+        try:
+            import hid  # noqa: F401
+            self.checks.append(DiagnosticCheck(
+                "HID Native Library (hidapi.dll)",
+                True,
+                "hidapi native library loaded successfully"
+            ))
+        except ImportError as e:
+            self.checks.append(DiagnosticCheck(
+                "HID Native Library (hidapi.dll)",
+                False,
+                f"hidapi.dll not found: {e}",
+                "Run install_windows.bat (or .ps1) – it downloads hidapi.dll automatically. "
+                "Or manually place hidapi.dll in your venv\\Scripts\\ folder. "
+                "Download from: https://github.com/libusb/hidapi/releases"
+            ))
+
+    def _check_libusb_native_library(self):
+        """Check that libusb is available for pyusb (Windows only)"""
+        try:
+            import usb.backend.libusb1 as _lb1
+            backend = _lb1.get_backend()
+            if backend is not None:
+                self.checks.append(DiagnosticCheck(
+                    "USB Native Library (libusb)",
+                    True,
+                    "libusb backend loaded successfully (pyusb USB bulk devices work)"
+                ))
+            else:
+                raise RuntimeError("no backend found")
+        except Exception as e:
+            self.checks.append(DiagnosticCheck(
+                "USB Native Library (libusb)",
+                False,
+                f"libusb not found: {e}",
+                "Install libusb-package: pip install libusb-package>=1.0.26  "
+                "(already included in pip install .[windows])"
+            ))
     
     def check_linux_specific(self):
         """Linux-specific checks"""

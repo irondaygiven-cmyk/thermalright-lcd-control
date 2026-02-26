@@ -9,7 +9,6 @@ Supports capturing from iStripper and other applications for display on LCD.
 import time
 from typing import Optional
 from PIL import Image
-import numpy as np
 
 from thermalright_lcd_control.common.platform_utils import is_windows, is_linux
 from thermalright_lcd_control.common.logging_config import get_service_logger
